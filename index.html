@@ -1066,6 +1066,24 @@
             animation: kingBadgePop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
         }
 
+        .king-square-cover {
+            position: absolute;
+            width: 12.5%;
+            height: 12.5%;
+            z-index: 1014;
+            pointer-events: none !important;
+            animation: kingCoverFade 0.3s ease-out forwards;
+        }
+        .king-cover-winner { background-color: rgba(245, 158, 11, 0.55); }
+        .king-cover-loser { background-color: rgba(239, 68, 68, 0.6); }
+        .king-cover-stalemate,
+        .king-cover-draw { background-color: rgba(0, 0, 0, 0.35); }
+
+        @keyframes kingCoverFade {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
         @keyframes kingBadgePop {
             0% {
                 transform: scale(0.3) rotate(-10deg);
@@ -8132,7 +8150,7 @@
             }
 
             function clearKingCheckmateBadges() {
-                const badges = document.querySelectorAll('.king-checkmate-badge');
+                const badges = document.querySelectorAll('.king-checkmate-badge, .king-square-cover');
                 badges.forEach(badge => badge.remove());
             }
 
@@ -8182,6 +8200,12 @@
                     if (!sq) return;
                     const file = isFlipped ? 7 - (sq.charCodeAt(0) - 97) : (sq.charCodeAt(0) - 97);
                     const rank = isFlipped ? parseInt(sq.charAt(1)) - 1 : 8 - parseInt(sq.charAt(1));
+
+                    const coverEl = document.createElement('div');
+                    coverEl.className = `king-square-cover king-cover-${type}`;
+                    coverEl.style.left = `${file * 12.5}%`;
+                    coverEl.style.top = `${rank * 12.5}%`;
+                    boardContainer.appendChild(coverEl);
 
                     const badgeEl = document.createElement('div');
                     badgeEl.className = `king-checkmate-badge king-badge-${type}`;
