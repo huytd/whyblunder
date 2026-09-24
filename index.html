@@ -4970,15 +4970,22 @@
         /* ===== CHESS.COM THEME — END ===== */
     </style>
 </head>
-<body data-theme="cc" data-board-theme="green">
+<body data-theme="cc" data-board-theme="brown">
     <script>
         // Apply saved UI/board theme before first layout so the board is sized for the right shell
         try {
             var savedUiTheme = localStorage.getItem('whyblunder_theme');
             var savedBoardTheme = localStorage.getItem('whyblunder_board_theme');
+            // One-time migration: green was auto-saved as the old default; move everyone to the Lichess brown board
+            if (!localStorage.getItem('whyblunder_board_theme_v2')) {
+                if (savedBoardTheme === 'green') {
+                    savedBoardTheme = 'brown';
+                    localStorage.setItem('whyblunder_board_theme', 'brown');
+                }
+                localStorage.setItem('whyblunder_board_theme_v2', '1');
+            }
             if (savedUiTheme) document.body.setAttribute('data-theme', savedUiTheme);
             if (savedBoardTheme) document.body.setAttribute('data-board-theme', savedBoardTheme);
-            else if (savedUiTheme === 'lichess') document.body.setAttribute('data-board-theme', 'brown');
         } catch (e) {}
     </script>
     <!-- chess.com-style Desktop Sidebar (forwards clicks to the header controls) -->
@@ -5007,8 +5014,8 @@
                 </label>
                 <label class="cc-settings-row">Board
                     <select class="form-select form-select-sm select-dark" data-cc-setting="board">
-                        <option value="green">Green</option>
                         <option value="brown">Brown</option>
+                        <option value="green">Green</option>
                         <option value="blue">Blue</option>
                     </select>
                 </label>
@@ -5612,8 +5619,8 @@
                 <div class="mobile-opt-row d-flex align-items-center justify-content-between">
                     <span class="d-flex align-items-center gap-2"><i class="bi bi-grid-3x3 text-info"></i> Board</span>
                     <select class="form-select form-select-sm select-dark" data-cc-setting="board" style="width: 140px;">
-                        <option value="green">Green</option>
                         <option value="brown">Brown</option>
+                        <option value="green">Green</option>
                         <option value="blue">Blue</option>
                     </select>
                 </div>
@@ -11071,10 +11078,10 @@
             }
 
             (function initCcUi() {
-                let savedTheme = 'cc', savedBoard = 'green';
+                let savedTheme = 'cc', savedBoard = 'brown';
                 try {
                     savedTheme = localStorage.getItem('whyblunder_theme') || 'cc';
-                    savedBoard = localStorage.getItem('whyblunder_board_theme') || (savedTheme === 'lichess' ? 'brown' : 'green');
+                    savedBoard = localStorage.getItem('whyblunder_board_theme') || 'brown';
                 } catch (e) {}
                 applyCcSettings(savedTheme, savedBoard);
 
