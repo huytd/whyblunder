@@ -688,7 +688,10 @@ assert(indexHtml.includes('function renderReviewSummary('), "index.html must def
 assert(indexHtml.includes('function ccEvalGraphSvg('), "index.html must define ccEvalGraphSvg");
 assert(indexHtml.includes('ChessEvaluator.gameAccuracy(list)'), "Review summary must use ChessEvaluator.gameAccuracy");
 assert(indexHtml.includes('body[data-theme="cc"]'), "index.html must include the chess.com theme token layer");
-assert(indexHtml.includes("localStorage.getItem('whyblunder_theme')"), "Theme preference must persist");
+assert(!indexHtml.includes('data-cc-setting="theme"'), "The Lichess UI theme is gone: no theme picker");
+assert(!indexHtml.includes('function isCcTheme('), "The chess.com look is the only UI theme");
+assert(indexHtml.includes("localStorage.removeItem('whyblunder_theme')"), "A saved Lichess-theme preference is cleared on load");
+assert(indexHtml.includes("localStorage.setItem('whyblunder_board_theme', b)"), "Board theme preference must persist");
 
 assert(!indexHtml.includes("Missed Opportunity"), "index.html should not have old 'Missed Opportunity' label");
 assert(indexHtml.includes("badgeLabel = isMissedWin ? 'MISSED WIN' : 'MISSED'"), "index.html should use MISSED and MISSED WIN labels");

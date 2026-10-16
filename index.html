@@ -5668,9 +5668,10 @@
 </head>
 <body data-theme="cc" data-board-theme="brown">
     <script>
-        // Apply saved UI/board theme before first layout so the board is sized for the right shell
+        // Apply the saved board theme before first layout. The chess.com look is the only
+        // UI theme now; drop the old Lichess-theme preference if one was saved.
         try {
-            var savedUiTheme = localStorage.getItem('whyblunder_theme');
+            localStorage.removeItem('whyblunder_theme');
             var savedBoardTheme = localStorage.getItem('whyblunder_board_theme');
             // One-time migration: green was auto-saved as the old default; move everyone to the Lichess brown board
             if (!localStorage.getItem('whyblunder_board_theme_v2')) {
@@ -5680,7 +5681,6 @@
                 }
                 localStorage.setItem('whyblunder_board_theme_v2', '1');
             }
-            if (savedUiTheme) document.body.setAttribute('data-theme', savedUiTheme);
             if (savedBoardTheme) document.body.setAttribute('data-board-theme', savedBoardTheme);
         } catch (e) {}
     </script>
@@ -5702,12 +5702,6 @@
                 <i class="bi bi-gear-fill"></i><span class="cc-sidebar-label">Settings</span>
             </button>
             <div class="dropdown-menu cc-settings-menu p-3">
-                <label class="cc-settings-row">Theme
-                    <select class="form-select form-select-sm select-dark" data-cc-setting="theme">
-                        <option value="cc">Chess.com</option>
-                        <option value="lichess">Lichess</option>
-                    </select>
-                </label>
                 <label class="cc-settings-row">Board
                     <select class="form-select form-select-sm select-dark" data-cc-setting="board">
                         <option value="brown">Brown</option>
@@ -6330,13 +6324,6 @@
                         <option value="2000">Slow (2s)</option>
                         <option value="1000" selected>Normal (1s)</option>
                         <option value="500">Fast (0.5s)</option>
-                    </select>
-                </div>
-                <div class="mobile-opt-row d-flex align-items-center justify-content-between">
-                    <span class="d-flex align-items-center gap-2"><i class="bi bi-palette-fill text-info"></i> Theme</span>
-                    <select class="form-select form-select-sm select-dark" data-cc-setting="theme" style="width: 140px;">
-                        <option value="cc">Chess.com</option>
-                        <option value="lichess">Lichess</option>
                     </select>
                 </div>
                 <div class="mobile-opt-row d-flex align-items-center justify-content-between">
@@ -8327,9 +8314,8 @@
                         const wQualityClass = getMoveQualityClass(wMove);
                         const isWKey = (typeof isKeyMoment === 'function') && isKeyMoment(wMove);
                         const wKeyClass = isWKey ? 'is-key-moment' : '';
-                        const wGlyph = getMoveGlyph(wMove);
                         const wBaseSan = (wMove.move || '').replace(/[?!]+$/, '');
-                        const wSanFormatted = formatSanWithFigurines(wBaseSan + (isCcTheme() ? '' : wGlyph), true);
+                        const wSanFormatted = formatSanWithFigurines(wBaseSan, true);
                         const wEvalFormatted = formatEvalForMoveList(wMove.evaluation);
 
                         html += `
@@ -8348,9 +8334,8 @@
                         const bQualityClass = getMoveQualityClass(bMove);
                         const isBKey = (typeof isKeyMoment === 'function') && isKeyMoment(bMove);
                         const bKeyClass = isBKey ? 'is-key-moment' : '';
-                        const bGlyph = getMoveGlyph(bMove);
                         const bBaseSan = (bMove.move || '').replace(/[?!]+$/, '');
-                        const bSanFormatted = formatSanWithFigurines(bBaseSan + (isCcTheme() ? '' : bGlyph), false);
+                        const bSanFormatted = formatSanWithFigurines(bBaseSan, false);
                         const bEvalFormatted = formatEvalForMoveList(bMove.evaluation);
 
                         html += `
@@ -8911,11 +8896,7 @@
                     updateBoardSquareHighlights(moveData.from, moveData.to);
                     drawArrow(moveData.from, moveData.to, 'current');
                     
-                    if (isCcTheme()) {
-                        addSquareAnnotation(moveData.to, ccQualityKey(move));
-                    } else if (move.quality === 'blunder' || move.quality === 'mistake' || move.quality === 'inaccuracy' || move.quality === 'brilliant' || move.quality === 'great') {
-                        addSquareAnnotation(moveData.to, move.quality);
-                    }
+                    addSquareAnnotation(moveData.to, ccQualityKey(move));
                     
                     if (move.quality !== 'good move' && move.betterMoveData) {
                         drawArrow(move.betterMoveData.from, move.betterMoveData.to, 'better');
@@ -9021,21 +9002,7 @@
                 const file = isFlipped ? 7 - (square.charCodeAt(0) - 97) : (square.charCodeAt(0) - 97);
                 const rank = isFlipped ? parseInt(square.charAt(1)) - 1 : 8 - parseInt(square.charAt(1));
                 
-                let symbol = '';
-                if (isCcTheme()) {
-                    symbol = ccGlyph(norm);
-                } else {
-                    switch(norm) {
-                        case 'blunder': symbol = '??'; break;
-                        case 'mistake': symbol = '?'; break;
-                        case 'inaccuracy': symbol = '?!'; break;
-                        case 'brilliant': symbol = '!!'; break;
-                        case 'miss': symbol = '✕'; break;
-                        case 'great':
-                        case 'best': symbol = '!'; break;
-                        default: symbol = '';
-                    }
-                }
+                const symbol = ccGlyph(norm);
                 if (!symbol) return;
                 
                 const annotation = document.createElement('div');
@@ -13022,10 +12989,6 @@
                 miss: 'misses a win', blunder: 'is a blunder'
             };
 
-            function isCcTheme() {
-                return document.body.getAttribute('data-theme') === 'cc';
-            }
-
             function ccNormalizeQuality(quality) {
                 const q = (quality || '').toLowerCase().trim();
                 if (q === 'missed win' || q === 'missed-win') return 'miss';
@@ -13310,10 +13273,9 @@
                 ccUpdateGraphCursor(currentMoveIndex);
             }
 
-            function openReviewSummary(force = false) {
+            function openReviewSummary() {
                 const section = document.getElementById('ccReviewSummary');
                 if (!section || currentAppMode === 'coach') return;
-                if (!force && !isCcTheme()) return;
                 section.hidden = false;
                 document.body.classList.add('cc-summary-open');
             }
@@ -13331,27 +13293,17 @@
                 if (currentAppMode === 'coach') closeReviewSummary();
             }
 
-            function applyCcSettings(theme, boardTheme) {
-                if (theme) document.body.setAttribute('data-theme', theme);
+            function applyBoardTheme(boardTheme) {
                 if (boardTheme) document.body.setAttribute('data-board-theme', boardTheme);
-                const t = document.body.getAttribute('data-theme');
                 const b = document.body.getAttribute('data-board-theme');
-                try {
-                    localStorage.setItem('whyblunder_theme', t);
-                    localStorage.setItem('whyblunder_board_theme', b);
-                } catch (e) {}
-                document.querySelectorAll('[data-cc-setting="theme"]').forEach(sel => { sel.value = t; });
+                try { localStorage.setItem('whyblunder_board_theme', b); } catch (e) {}
                 document.querySelectorAll('[data-cc-setting="board"]').forEach(sel => { sel.value = b; });
-                if (t !== 'cc') closeReviewSummary();
             }
 
             (function initCcUi() {
-                let savedTheme = 'cc', savedBoard = 'brown';
-                try {
-                    savedTheme = localStorage.getItem('whyblunder_theme') || 'cc';
-                    savedBoard = localStorage.getItem('whyblunder_board_theme') || 'brown';
-                } catch (e) {}
-                applyCcSettings(savedTheme, savedBoard);
+                let savedBoard = 'brown';
+                try { savedBoard = localStorage.getItem('whyblunder_board_theme') || 'brown'; } catch (e) {}
+                applyBoardTheme(savedBoard);
 
                 document.querySelectorAll('[data-cc-setting="speed"]').forEach(sel => {
                     if (speedControl) sel.value = speedControl.value;
@@ -13362,17 +13314,12 @@
                     });
                 });
 
-                document.querySelectorAll('[data-cc-setting="theme"], [data-cc-setting="board"]').forEach(sel => {
+                document.querySelectorAll('[data-cc-setting="board"]').forEach(sel => {
                     sel.addEventListener('change', () => {
-                        if (sel.dataset.ccSetting === 'theme') applyCcSettings(sel.value, null);
-                        else applyCcSettings(null, sel.value);
+                        applyBoardTheme(sel.value);
                         setTimeout(() => {
                             if (board && board.resize) board.resize();
                             updateSvgDimensions();
-                            if (sel.dataset.ccSetting === 'theme' && moves.length > 0) {
-                                displayAnalysis(moves);
-                                closeReviewSummary();
-                            }
                             if (isSelfReviewActive()) srDrawBoardMarks();
                             else if (currentAppMode === 'analysis' && currentMoveIndex >= 0) goToMove(currentMoveIndex);
                         }, 50);
@@ -13395,7 +13342,7 @@
                 const openSummaryOrImport = () => {
                     switchAppMode('analysis');
                     if (moves.length > 0) {
-                        openReviewSummary(true);
+                        openReviewSummary();
                     } else if (btnTogglePgn && pgnDrawer && !pgnDrawer.classList.contains('open')) {
                         btnTogglePgn.click();
                     }
