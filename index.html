@@ -4090,6 +4090,7 @@
         .sr-move.is-empty { pointer-events: none; }
         .sr-move.is-moment { color: var(--lic-text-bright); }
         .sr-move.is-current { background: var(--lic-bg-surface-hover); box-shadow: inset 0 -2px 0 var(--sr-accent); }
+        .sr-move.is-to-play { outline: 1px dashed var(--sr-accent); outline-offset: -1px; }
         .sr-mv-ok { color: var(--q-good); font-size: 0.8rem; }
         .sr-mv-todo { color: var(--sr-accent); font-size: 0.8rem; }
         .sr-mv-flag {
@@ -12459,14 +12460,18 @@
                 });
             }
 
-            // The move highlighted in the list: the moment being reviewed, the browsed
-            // move, or the last move on the board for phase steps
+            // The move highlighted in the list is always the last move on the board, so
+            // ← / → move the highlight exactly one half-move at a time
             function srListIndex() {
-                if (srBrowsing() && srOnReveal() && selfReview.revealFocus !== null) return selfReview.revealFocus;
-                if (srBrowsing()) return selfReview.browse;
+                return srCursor();
+            }
+
+            // At a critical moment the board shows the position before the player's move;
+            // that move is marked "to play" next to the highlight (-1 = none)
+            function srToPlayIndex() {
+                if (srBrowsing()) return (srOnReveal() && selfReview.revealFocus !== null) ? selfReview.revealFocus : -1;
                 const step = srCurrentStep();
-                if (!step) return -1;
-                return step.type === 'moment' ? step.index : srStepLastMoveIndex(step);
+                return step && step.type === 'moment' ? step.index : -1;
             }
 
             // Moves already on the board (-1 = start position)
@@ -12519,6 +12524,7 @@
                 const list = document.getElementById('srMovesList');
                 if (!list || !selfReview || !selfReview.plan) return;
                 const current = srListIndex();
+                const toPlay = srToPlayIndex();
                 const momentSet = new Set(selfReview.plan.moments);
                 let html = '';
                 for (let i = 0; i < moves.length; i += 2) {
@@ -12528,18 +12534,19 @@
                         const isMoment = momentSet.has(idx);
                         const status = isMoment ? srMomentStatus(idx) : '';
                         const isCurrent = idx === current;
+                        const isToPlay = idx === toPlay;
                         let badge = '';
                         if (status === 'reviewed') badge = '<i class="bi bi-check-circle-fill sr-mv-ok" aria-label="Reviewed"></i>';
-                        else if (status === 'needs-review' && !(isCurrent && !srBrowsing())) badge = '<span class="sr-mv-flag">Need review</span>';
+                        else if (status === 'needs-review' && !isToPlay) badge = '<span class="sr-mv-flag">Need review</span>';
                         else if (isMoment) badge = '<i class="bi bi-record-circle sr-mv-todo" aria-label="Moment to review"></i>';
-                        const cls = ['sr-move', isMoment ? 'is-moment' : '', status ? `s-${status}` : '', isCurrent ? 'is-current' : ''].filter(Boolean).join(' ');
+                        const cls = ['sr-move', isMoment ? 'is-moment' : '', status ? `s-${status}` : '', isCurrent ? 'is-current' : '', isToPlay ? 'is-to-play' : ''].filter(Boolean).join(' ');
                         const san = formatSanWithFigurines((m.move || '').replace(/[?!]+$/, ''), m.is_white);
                         return `<button type="button" class="${cls}" data-sr-move="${idx}"${isCurrent ? ' aria-current="true"' : ''}>${san}${badge}</button>`;
                     };
                     html += `<div class="sr-move-pair"><span class="sr-move-no">${moves[i].move_number}.</span>${cell(i)}${cell(i + 1)}</div>`;
                 }
                 list.innerHTML = html;
-                const active = list.querySelector('.sr-move.is-current');
+                const active = list.querySelector('.sr-move.is-to-play') || list.querySelector('.sr-move.is-current');
                 if (active) {
                     // Scroll the line itself, never the page (the list is the offset parent)
                     const left = active.offsetLeft;
