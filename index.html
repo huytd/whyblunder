@@ -4034,6 +4034,25 @@
             color: var(--lic-text-primary);
             white-space: pre-wrap;
         }
+        .sr-back-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border: 1px solid var(--lic-border-strong);
+            border-radius: 8px;
+            background: var(--lic-bg-surface-hover);
+            color: var(--lic-text-bright);
+            text-align: left;
+        }
+        .sr-back-bar:hover { border-color: var(--lic-blue); }
+        .sr-back-bar > .bi:first-child { color: var(--lic-blue); font-size: 1.05rem; }
+        .sr-back-bar > .bi:last-child { margin-left: auto; color: var(--lic-text-secondary); }
+        .sr-back-bar-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+        .sr-back-bar-text b { font-size: var(--lic-fs-base); font-weight: 800; }
+        .sr-back-bar-text small { font-size: var(--lic-fs-sm); color: var(--lic-text-secondary); }
         .sr-move-note {
             margin-top: 10px;
             padding: 8px 10px;
@@ -8488,7 +8507,7 @@
             // Show Comprehensive Move Explanation in Left Column
             function showMoveExplanation(index) {
                 if (index < 0 || index >= moves.length) {
-                    moveExplanation.innerHTML = `
+                    moveExplanation.innerHTML = srBackBarHtml() + `
                         <div class="diagnosis-empty">
                             <i class="bi bi-search"></i>
                             <span>Select any move in the list to view engine diagnosis, tactical tags, threats, and alternative variations.</span>
@@ -8664,7 +8683,7 @@
                 }
 
                 html += srMoveNoteHtml(index);
-                moveExplanation.innerHTML = html;
+                moveExplanation.innerHTML = srBackBarHtml() + html;
                 
                 moveExplanation.querySelectorAll('.var-move-btn').forEach(btn => {
                     btn.addEventListener('click', function(e) {
@@ -9418,7 +9437,7 @@
                 clearKingCheckmateBadges();
                 updateKeyMomentBadge();
 
-                moveExplanation.innerHTML = `
+                moveExplanation.innerHTML = srBackBarHtml() + `
                     <div class="diagnosis-empty">
                         <i class="bi bi-search"></i>
                         <span>Select any move in the list to view engine diagnosis, tactical tags, threats, and alternative variations. Drag a piece on the board to try your own line.</span>
@@ -12209,6 +12228,7 @@
                     if (selfReview.side) srSave();
                     else SelfReview.save(selfReview.key, { skipped: true });
                 }
+                const returnTo = selfReview.returnTo;
                 closeSelfReviewPanel();
                 clearArrows();
                 srSyncOpenButtons();
@@ -12217,6 +12237,8 @@
                     updateSvgDimensions();
                     if (typeof opts.goTo === 'number' && opts.goTo >= 0) {
                         goToMove(opts.goTo);
+                    } else if (typeof returnTo === 'number' && returnTo >= 0) {
+                        goToMove(returnTo);
                     } else {
                         goToFirstMove();
                         openReviewSummary();
@@ -12244,7 +12266,23 @@
                     saved.skipped = false;
                     SelfReview.save(srGameKey(), saved);
                 }
+                const returnTo = currentMoveIndex;
                 startSelfReview({ reveal: true });
+                if (selfReview) selfReview.returnTo = returnTo;
+            }
+
+            // Way back to the self review from anywhere in the engine analysis
+            function srBackBarHtml() {
+                if (typeof SelfReview === 'undefined' || isSelfReviewActive() || moves.length < 4 || currentAppMode === 'coach') return '';
+                const saved = SelfReview.load(srGameKey());
+                if (!saved || !saved.side) return '';
+                const label = saved.completed ? 'Back to your self review' : 'Continue your self review';
+                const sub = saved.completed ? 'Your answers next to the engine' : 'Pick up where you left off';
+                return `<button type="button" class="sr-back-bar" data-sr-reopen>
+                    <i class="bi bi-pencil-square"></i>
+                    <span class="sr-back-bar-text"><b>${label}</b><small>${sub}</small></span>
+                    <i class="bi bi-chevron-right"></i>
+                </button>`;
             }
 
             // ---- Board ----
@@ -12962,6 +13000,12 @@
 
                 const footerBtn = document.getElementById('ccSelfReview');
                 if (footerBtn) footerBtn.addEventListener('click', openSelfReviewFromUi);
+                const explanation = document.getElementById('moveExplanation');
+                if (explanation) {
+                    explanation.addEventListener('click', (e) => {
+                        if (e.target.closest('[data-sr-reopen]')) openSelfReviewFromUi();
+                    });
+                }
                 const chip = document.getElementById('btnMovesSelfReview');
                 if (chip) chip.addEventListener('click', openSelfReviewFromUi);
             })();

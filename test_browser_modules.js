@@ -639,6 +639,7 @@ console.log("Testing SelfReview...");
     assert.ok(indexHtml.includes('id="ccSelfReview"'), 'Game Review summary must link to the self review');
     assert.ok(indexHtml.includes('id="srMovesList"'), 'Self review must offer a spoiler-free move list');
     assert.ok(indexHtml.includes('id="ccSplitHandle"'), 'Analysis / move list split must be resizable');
+    assert.ok(indexHtml.includes('moveExplanation.innerHTML = srBackBarHtml() + html;'), 'The engine analysis always offers a way back to the self review');
     assert.ok(/function srListIndex\(\) \{\s*return srCursor\(\);/.test(indexHtml), 'Self review move list highlights the last move on the board, one half-move per arrow press');
     assert.ok(indexHtml.includes("const SPLIT_KEY = 'whyblunder_analysis_split';"), 'The split height is remembered');
     assert.ok(indexHtml.includes('function srRevealGoTo(cursor, focus)'), 'Moving through the game on the comparison screen keeps the comparison visible');
