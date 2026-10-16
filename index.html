@@ -1337,12 +1337,6 @@
             flex-direction: column;
             gap: 6px;
         }
-        .outcome-banner-box.refutation {
-            border-left: 3px solid var(--lic-red);
-        }
-        .outcome-banner-box.better {
-            border-left: 3px solid var(--lic-green);
-        }
         .outcome-title {
             font-size: var(--lic-fs-base);
             font-weight: 700;
@@ -4033,8 +4027,7 @@
         .sr-row-note, .sr-move-note-text {
             margin-top: 6px;
             padding: 6px 8px;
-            border-left: 3px solid var(--sr-accent, var(--lic-blue));
-            border-radius: 0 4px 4px 0;
+            border-radius: 4px;
             background: var(--lic-bg-surface-hover);
             font-size: var(--lic-fs-sm);
             line-height: 1.45;
@@ -5344,23 +5337,18 @@
             padding: 6px 8px;
             border-radius: 4px;
             background: var(--lic-bg-surface-subtle);
-            border-left: 3px solid transparent;
             transition: background 0.15s ease;
         }
         .diag-line-row.is-refutation {
-            border-left-color: var(--lic-red);
             background: rgba(204, 51, 51, 0.06);
         }
         .diag-line-row.is-better {
-            border-left-color: var(--lic-green);
             background: rgba(98, 153, 36, 0.06);
         }
         body[data-theme="cc"] .diag-line-row.is-refutation {
-            border-left-color: var(--q-blunder);
             background: rgba(250, 65, 45, 0.08);
         }
         body[data-theme="cc"] .diag-line-row.is-better {
-            border-left-color: var(--q-best);
             background: rgba(129, 182, 76, 0.08);
         }
         .diag-line-label {
