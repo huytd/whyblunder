@@ -562,6 +562,31 @@ console.log("Testing SelfReview...");
     assert.strictEqual(steps.filter(s => s.type === 'moment').length, plan.moments.length);
     assert.strictEqual(steps.filter(s => s.type === 'checkpoint').length, 3);
 
+    // Review gate: unanswered moments are flagged and block the next phase
+    assert.strictEqual(SelfReview.isMomentReviewed({ eval: 'equal' }), false, 'Both questions must be answered');
+    assert.strictEqual(SelfReview.isMomentReviewed({ eval: 'equal', rating: 'fine' }), true);
+    const gateAnswers = { moments: { 6: { eval: 'equal', rating: 'fine' }, 12: { eval: 'better' } } };
+    assert.strictEqual(SelfReview.momentStatus(6, gateAnswers, []), 'reviewed');
+    assert.strictEqual(SelfReview.momentStatus(12, gateAnswers, [12]), 'needs-review', 'Opened and left unanswered');
+    assert.strictEqual(SelfReview.momentStatus(14, gateAnswers, ['12']), 'pending', 'Not opened yet');
+    assert.strictEqual(SelfReview.momentStatus(12, gateAnswers, ['12']), 'needs-review', 'Visited indices may come back from JSON as strings');
+    assert.deepStrictEqual(SelfReview.unreviewedMoments(plan, gateAnswers, []), [12, 14, 20]);
+    assert.deepStrictEqual(SelfReview.unreviewedMoments(plan, gateAnswers, 'middlegame'), [12, 14]);
+    const gSteps = SelfReview.planSteps(plan);
+    const stepOf = (pred) => gSteps.findIndex(pred);
+    const openingCheckpoint = stepOf(st => st.type === 'checkpoint' && st.phase === 'opening');
+    const middleIntro = stepOf(st => st.type === 'phase' && st.phase === 'middlegame');
+    const middleCheckpoint = stepOf(st => st.type === 'checkpoint' && st.phase === 'middlegame');
+    const endIntro = stepOf(st => st.type === 'phase' && st.phase === 'endgame');
+    const reveal = gSteps.length - 1;
+    assert.deepStrictEqual(SelfReview.stepBlockers(plan, gSteps, gateAnswers, openingCheckpoint, middleIntro), [], 'Opening is fully reviewed');
+    assert.deepStrictEqual(SelfReview.stepBlockers(plan, gSteps, gateAnswers, middleIntro, middleCheckpoint), [], 'Moving within a phase is free');
+    assert.deepStrictEqual(SelfReview.stepBlockers(plan, gSteps, gateAnswers, middleCheckpoint, endIntro), [12, 14], 'Next phase needs the middlegame answered');
+    assert.deepStrictEqual(SelfReview.stepBlockers(plan, gSteps, gateAnswers, endIntro, middleIntro), [], 'Going back is never blocked');
+    assert.deepStrictEqual(SelfReview.stepBlockers(plan, gSteps, gateAnswers, reveal - 1, reveal), [12, 14, 20], 'The comparison needs every moment');
+    const allDone = { moments: { 6: { eval: 'equal', rating: 'fine' }, 12: { eval: 'better', rating: 'bad' }, 14: { eval: 'equal', rating: 'fine' }, 20: { eval: 'winning', rating: 'strong' } } };
+    assert.deepStrictEqual(SelfReview.stepBlockers(plan, gSteps, allDone, reveal - 1, reveal), []);
+
     // Candidate moves vs the engine
     assert.strictEqual(SelfReview.candidateVerdict(game[14], 'Qd5+'), 'best');
     assert.strictEqual(SelfReview.candidateVerdict(game[14], 'm14'), 'played');
@@ -612,8 +637,11 @@ console.log("Testing SelfReview...");
     assert.ok(indexHtml.includes('id="selfReviewPanel"'), 'Self review panel must exist');
     assert.ok(indexHtml.includes('id="srSkipToEngine"'), 'Self review must offer a way straight to the engine');
     assert.ok(indexHtml.includes('id="ccSelfReview"'), 'Game Review summary must link to the self review');
+    assert.ok(indexHtml.includes('id="srMovesList"'), 'Self review must offer a spoiler-free move list');
+    assert.ok(indexHtml.includes('<span class="sr-mv-flag">Need review</span>'), 'Moments left unanswered must be flagged "Need review"');
+    assert.ok(indexHtml.includes('SelfReview.stepBlockers(selfReview.plan, selfReview.steps, selfReview.answers, selfReview.step, target)'), 'Next must be gated on unreviewed moments');
     assert.ok(indexHtml.includes('body.self-review-active #evalGauge'), 'Eval bar must be hidden during self review');
-    assert.ok(/if \(isSelfReviewActive\(\)\) return;/.test(indexHtml), 'Keyboard navigation must be off during self review');
+    assert.ok(indexHtml.includes('srStepCursor(e.key === \'ArrowLeft\' ? -1 : 1);'), 'Arrow keys walk the spoiler-free move list during self review');
     assert.strictEqual((indexHtml.match(/maybeStartSelfReview\(\);/g) || []).length, 3, 'Every analysis load path offers the self review');
     assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'self-review.js'), 'utf8')), 'Self review must be deterministic');
 }

@@ -311,6 +311,50 @@
         return 'off';
     }
 
+    /** A moment counts as reviewed once the player has rated both the position and the move. */
+    function isMomentReviewed(answer) {
+        return Boolean(answer && answer.eval && answer.rating);
+    }
+
+    /**
+     * Review state of one critical moment: 'reviewed', 'needs-review' (the player
+     * opened it and left without answering) or 'pending' (not opened yet).
+     */
+    function momentStatus(index, answers, visited) {
+        const a = answers && answers.moments ? answers.moments[index] : null;
+        if (isMomentReviewed(a)) return 'reviewed';
+        const seen = Array.isArray(visited) && visited.some(v => Number(v) === Number(index));
+        return seen ? 'needs-review' : 'pending';
+    }
+
+    /** Moments still unanswered in the given phases (all phases when `phases` is empty), in game order. */
+    function unreviewedMoments(plan, answers, phases) {
+        const only = Array.isArray(phases) ? phases : (phases ? [phases] : []);
+        return ((plan && plan.phases) || [])
+            .filter(p => only.length === 0 || only.includes(p.phase))
+            .reduce((all, p) => all.concat(p.moments), [])
+            .filter(i => !isMomentReviewed(answers && answers.moments ? answers.moments[i] : null));
+    }
+
+    /**
+     * Moments that must be reviewed before moving from step `from` to step `to`
+     * (indices into planSteps()).
+     * Moving back or within a phase is always allowed. Moving into a later phase
+     * needs every earlier phase done, and the final comparison needs all of them.
+     */
+    function stepBlockers(plan, steps, answers, from, to) {
+        const list = steps || [];
+        const target = list[to];
+        const current = list[from];
+        if (!target || !current || to <= from) return [];
+        if (target.type === 'reveal') return unreviewedMoments(plan, answers, []);
+        const order = ((plan && plan.phases) || []).map(p => p.phase);
+        const targetOrder = order.indexOf(target.phase);
+        const currentOrder = order.indexOf(current.phase);
+        if (targetOrder <= currentOrder) return [];
+        return unreviewedMoments(plan, answers, order.slice(0, targetOrder));
+    }
+
     /** Candidate move vs engine: 'best' | 'good' | 'ok' | 'worse' | 'played' | null (unknown). */
     function candidateVerdict(move, candidateSan, candidateWp) {
         const cand = bareSan(candidateSan);
@@ -541,6 +585,10 @@
         selectMoments,
         buildPlan,
         planSteps,
+        isMomentReviewed,
+        momentStatus,
+        unreviewedMoments,
+        stepBlockers,
         candidateVerdict,
         compare,
         gameKey,

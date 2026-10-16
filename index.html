@@ -4049,6 +4049,86 @@
         .sr-move-note-title { margin-bottom: 4px; font-weight: 800; color: var(--lic-text-bright); }
         .sr-move-note b { color: var(--lic-text-bright); }
         .arrow-candidate { fill: rgba(156, 106, 222, 0.8); }
+        .sr-moves { border-bottom: 1px solid var(--lic-border); }
+        .sr-moves[hidden] { display: none; }
+        .sr-moves-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px 2px 14px;
+            font-size: var(--lic-fs-sm);
+            font-weight: 800;
+            color: var(--lic-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .sr-moves-nav { display: flex; gap: 2px; }
+        .sr-moves-nav .sr-link-btn { min-width: 36px; font-size: 0.95rem; }
+        .sr-moves-list {
+            display: grid;
+            grid-template-columns: 34px 1fr 1fr;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 0 10px 8px;
+            overscroll-behavior: contain;
+        }
+        .sr-move-pair { display: contents; }
+        .sr-move-no { padding: 4px 0; font-size: var(--lic-fs-sm); color: var(--lic-text-muted); }
+        .sr-move {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+            min-height: 28px;
+            padding: 2px 6px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--lic-text-primary);
+            font-size: var(--lic-fs-base);
+            font-weight: 600;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .sr-move:hover { background: var(--lic-bg-surface-hover); }
+        .sr-move.is-empty { pointer-events: none; }
+        .sr-move.is-moment { color: var(--lic-text-bright); }
+        .sr-move.is-current { background: var(--lic-bg-surface-hover); box-shadow: inset 0 -2px 0 var(--sr-accent); }
+        .sr-mv-ok { color: var(--q-good); font-size: 0.8rem; }
+        .sr-mv-todo { color: var(--sr-accent); font-size: 0.8rem; }
+        .sr-mv-flag {
+            padding: 1px 6px;
+            border-radius: 9px;
+            background: var(--q-mistake);
+            color: #fff;
+            font-size: 0.6875rem;
+            font-weight: 800;
+            line-height: 1.4;
+        }
+        .sr-moment-chip.s-needs-review { border-color: var(--q-mistake); color: var(--lic-text-bright); }
+        .sr-blocked {
+            margin-bottom: 12px;
+            padding: 10px;
+            border: 1px solid var(--q-mistake);
+            border-radius: 8px;
+            background: rgba(217, 119, 6, 0.12);
+            font-size: var(--lic-fs-base);
+            color: var(--lic-text-primary);
+        }
+        .sr-blocked .bi { color: var(--q-mistake); }
+        .sr-blocked .sr-chips { margin-top: 8px; }
+        .sr-status-row { margin-top: 12px; }
+        .sr-status { font-size: var(--lic-fs-sm); color: var(--lic-text-secondary); }
+        .sr-status.is-done { color: var(--q-good); font-weight: 700; }
+        #srNext.is-blocked { opacity: 0.85; }
+        .sr-next-count {
+            margin-left: 6px;
+            padding: 1px 8px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.25);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
 
         @media (min-width: 992px) {
             body.self-review-active .studio-grid {
@@ -4074,16 +4154,37 @@
             }
             body.self-review-active .col-board { order: 1; flex-shrink: 0; }
             body.self-review-active .board-container-card {
-                max-width: min(100%, calc(var(--app-h) - var(--m-appbar-h) - 330px));
+                max-width: min(100%, calc(var(--app-h) - var(--m-appbar-h) - 370px));
                 margin-inline: auto;
             }
             body.self-review-active .self-review {
                 order: 2;
                 flex: 1 1 auto;
+                align-self: stretch;
+                width: 100%;
+                min-width: 0;
+                max-width: 100%;
                 min-height: 0;
                 margin-bottom: calc(6px + var(--safe-bottom));
             }
             body.self-review-active .sr-header { padding: 4px 10px; }
+            body.self-review-active .sr-moves:not([hidden]) { display: flex; align-items: center; }
+            .sr-moves-head { order: 2; padding: 0 6px 0 0; }
+            .sr-moves-head > span { display: none; }
+            .sr-moves-list {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-wrap: nowrap;
+                gap: 6px;
+                max-height: none;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 6px 10px;
+                scrollbar-width: none;
+            }
+            .sr-move-pair { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+            .sr-move { min-height: 32px; }
             body.self-review-active .sr-body { padding: 10px 12px; }
         }
         /* ===== SELF REVIEW — END ===== */
@@ -6067,6 +6168,16 @@
                     <button type="button" class="sr-link-btn" id="srSkipToEngine">Show engine analysis <i class="bi bi-arrow-right"></i></button>
                 </header>
                 <div class="sr-phasebar" id="srPhaseBar"></div>
+                <div class="sr-moves" id="srMoves" hidden>
+                    <div class="sr-moves-head">
+                        <span>Moves</span>
+                        <div class="sr-moves-nav">
+                            <button type="button" class="sr-link-btn" data-sr-step-move="-1" title="Previous move (←)" aria-label="Previous move"><i class="bi bi-chevron-left"></i></button>
+                            <button type="button" class="sr-link-btn" data-sr-step-move="1" title="Next move (→)" aria-label="Next move"><i class="bi bi-chevron-right"></i></button>
+                        </div>
+                    </div>
+                    <div class="sr-moves-list" id="srMovesList" aria-label="Game moves"></div>
+                </div>
                 <div class="sr-body" id="srBody" aria-live="polite"></div>
                 <footer class="sr-footer" id="srFooter">
                     <button type="button" class="sr-btn-secondary" id="srBack"><i class="bi bi-chevron-left"></i> Back</button>
@@ -7330,8 +7441,14 @@
                 if (['input', 'textarea', 'select'].includes(document.activeElement.tagName.toLowerCase())) {
                     return;
                 }
-                // Self review owns the board: game navigation would reveal the engine's verdicts
-                if (isSelfReviewActive()) return;
+                // Self review owns the board: only its own spoiler-free move navigation
+                if (isSelfReviewActive()) {
+                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        srStepCursor(e.key === 'ArrowLeft' ? -1 : 1);
+                    }
+                    return;
+                }
                 if (currentAppMode === 'coach') {
                     if (e.key === 'ArrowLeft') {
                         e.preventDefault();
@@ -11966,6 +12083,7 @@
                     step: selfReview.step,
                     answers: selfReview.answers,
                     candidateWps: selfReview.candidateWps,
+                    visited: selfReview.visited,
                     completed: selfReview.completed,
                     skipped: selfReview.skipped || false
                 });
@@ -12027,6 +12145,9 @@
                     step: 0,
                     answers: { moments: {}, phases: {} },
                     candidateWps: {},
+                    visited: [],     // moments the player has opened (unanswered ones need review)
+                    browse: null,    // index of the move being looked at outside the steps, or null
+                    blocked: [],     // moments to answer before the last attempted step forward
                     completed: false,
                     skipped: false
                 };
@@ -12039,6 +12160,7 @@
                         selfReview.answers.moments = selfReview.answers.moments || {};
                         selfReview.answers.phases = selfReview.answers.phases || {};
                         selfReview.candidateWps = saved.candidateWps || {};
+                        selfReview.visited = Array.isArray(saved.visited) ? saved.visited : [];
                         selfReview.completed = Boolean(saved.completed);
                         const last = selfReview.steps.length - 1;
                         selfReview.step = (opts.reveal && selfReview.completed) ? last : Math.max(0, Math.min(saved.step || 0, last));
@@ -12132,13 +12254,19 @@
                 return moves.length - 1;
             }
 
+            function srBrowsing() {
+                return Boolean(selfReview) && selfReview.browse !== null && selfReview.browse !== undefined;
+            }
+
             function srShowBoard() {
                 if (!isSelfReviewActive()) return;
                 const step = srCurrentStep();
-                const fen = step ? srStepFen(step) : 'start';
+                const fen = srBrowsing()
+                    ? (selfReview.browse < 0 ? 'start' : (selfReview.fens[selfReview.browse + 1] || selfReview.finalFen))
+                    : (step ? srStepFen(step) : 'start');
                 board.position(fen === 'start' ? 'start' : fen, false);
                 updateMaterialDifference(fen);
-                updateTurnIndicators(srStepLastMoveIndex(step));
+                updateTurnIndicators(srBrowsing() ? selfReview.browse : srStepLastMoveIndex(step));
                 clearSquareAnnotations();
                 clearKingCheckmateBadges();
                 srDrawBoardMarks();
@@ -12149,9 +12277,9 @@
                 clearArrows();
                 const step = srCurrentStep();
                 if (!step) return;
-                const last = srStepLastMoveIndex(step);
+                const last = srBrowsing() ? selfReview.browse : srStepLastMoveIndex(step);
                 if (last >= 0 && moveHistory[last]) updateBoardSquareHighlights(moveHistory[last].from, moveHistory[last].to);
-                if (step.type !== 'moment') return;
+                if (srBrowsing() || step.type !== 'moment') return;
                 const played = moveHistory[step.index];
                 if (played) drawArrow(played.from, played.to, 'current');
                 const a = selfReview.answers.moments[step.index];
@@ -12160,7 +12288,7 @@
 
             function handleSelfReviewDragStart(source, piece) {
                 const step = srCurrentStep();
-                if (!step || step.type !== 'moment') return false;
+                if (!step || step.type !== 'moment' || srBrowsing()) return false;
                 const fen = selfReview.fens[step.index];
                 return Boolean(fen && piece && piece.charAt(0) === fen.split(' ')[1]);
             }
@@ -12207,8 +12335,10 @@
                 const next = document.getElementById('srNext');
                 if (!body || !selfReview) return;
 
+                const movesBox = document.getElementById('srMoves');
                 if (!selfReview.side) {
                     bar.innerHTML = '';
+                    if (movesBox) movesBox.hidden = true;
                     footer.hidden = true;
                     body.innerHTML = srIntroHtml();
                     return;
@@ -12216,24 +12346,169 @@
 
                 const step = srCurrentStep();
                 bar.innerHTML = srPhaseBarHtml(step);
+                if (movesBox) movesBox.hidden = false;
+                renderSrMoves();
                 footer.hidden = false;
+
+                if (srBrowsing()) {
+                    back.classList.add('d-none');
+                    next.classList.remove('is-blocked');
+                    next.innerHTML = '<i class="bi bi-arrow-return-left"></i> Back to the review';
+                    body.innerHTML = srBrowseHtml();
+                    body.scrollTop = 0;
+                    return;
+                }
+
                 back.disabled = selfReview.step === 0;
                 const isReveal = step && step.type === 'reveal';
                 back.classList.toggle('d-none', isReveal);
+                const pending = isReveal ? [] : SelfReview.stepBlockers(selfReview.plan, selfReview.steps, selfReview.answers, selfReview.step, selfReview.step + 1);
+                next.classList.toggle('is-blocked', pending.length > 0);
+                const nextStep = selfReview.steps[selfReview.step + 1];
                 next.innerHTML = isReveal
                     ? 'Open engine analysis <i class="bi bi-arrow-right"></i>'
-                    : (selfReview.steps[selfReview.step + 1] && selfReview.steps[selfReview.step + 1].type === 'reveal'
+                    : (nextStep && nextStep.type === 'reveal'
                         ? 'Compare with the engine <i class="bi bi-arrow-right"></i>'
                         : 'Next <i class="bi bi-chevron-right"></i>');
+                if (pending.length > 0) next.innerHTML += `<span class="sr-next-count" title="Moments still to review">${pending.length} to review</span>`;
 
-                if (!step) body.innerHTML = '';
-                else if (step.type === 'phase') body.innerHTML = srPhaseHtml(step);
-                else if (step.type === 'moment') body.innerHTML = srMomentHtml(step);
-                else if (step.type === 'checkpoint') body.innerHTML = srCheckpointHtml(step);
-                else body.innerHTML = srRevealHtml();
+                let html = '';
+                if (!step) html = '';
+                else if (step.type === 'phase') html = srPhaseHtml(step);
+                else if (step.type === 'moment') html = srMomentHtml(step);
+                else if (step.type === 'checkpoint') html = srCheckpointHtml(step);
+                else html = srRevealHtml();
+                body.innerHTML = srBlockedHtml() + html;
                 body.scrollTop = 0;
                 if (isReveal) srEvaluateCandidates();
             }
+
+            // ---- Move list: walk the whole game without engine marks ----
+            function srMomentStepIndex(moveIndex) {
+                return selfReview.steps.findIndex(st => st.type === 'moment' && st.index === moveIndex);
+            }
+
+            function srMomentStatus(index) {
+                return SelfReview.momentStatus(index, selfReview.answers, selfReview.visited);
+            }
+
+            function srMarkVisited(indices) {
+                [].concat(indices).forEach(i => {
+                    if (!selfReview.visited.some(v => Number(v) === Number(i))) selfReview.visited.push(i);
+                });
+            }
+
+            // The move highlighted in the list: the moment being reviewed, the browsed
+            // move, or the last move on the board for phase steps
+            function srListIndex() {
+                if (srBrowsing()) return selfReview.browse;
+                const step = srCurrentStep();
+                if (!step) return -1;
+                return step.type === 'moment' ? step.index : srStepLastMoveIndex(step);
+            }
+
+            // Moves already on the board (-1 = start position)
+            function srCursor() {
+                if (srBrowsing()) return selfReview.browse;
+                return srStepLastMoveIndex(srCurrentStep());
+            }
+
+            // Clicking a move: a critical moment opens its questions, any other move is just shown
+            function srOpenMove(index) {
+                if (!selfReview || !selfReview.side) return;
+                const i = Math.max(-1, Math.min(index, moves.length - 1));
+                const stepIdx = i >= 0 ? srMomentStepIndex(i) : -1;
+                if (stepIdx >= 0) {
+                    srGoToStep(stepIdx, { free: true });
+                    return;
+                }
+                selfReview.browse = i;
+                selfReview.blocked = [];
+                renderSelfReview();
+                srShowBoard();
+            }
+
+            // ← / →: one position at a time; the position before a critical moment opens that moment
+            function srStepCursor(delta) {
+                if (!selfReview || !selfReview.side) return;
+                const c = Math.max(-1, Math.min(srCursor() + delta, moves.length - 1));
+                if (c === srCursor() && !srBrowsing()) return;
+                const stepIdx = srMomentStepIndex(c + 1);
+                if (stepIdx >= 0) {
+                    srGoToStep(stepIdx, { free: true });
+                    return;
+                }
+                selfReview.browse = c;
+                selfReview.blocked = [];
+                renderSelfReview();
+                srShowBoard();
+            }
+
+            function renderSrMoves() {
+                const list = document.getElementById('srMovesList');
+                if (!list || !selfReview || !selfReview.plan) return;
+                const current = srListIndex();
+                const momentSet = new Set(selfReview.plan.moments);
+                let html = '';
+                for (let i = 0; i < moves.length; i += 2) {
+                    const cell = (idx) => {
+                        const m = moves[idx];
+                        if (!m) return '<span class="sr-move is-empty"></span>';
+                        const isMoment = momentSet.has(idx);
+                        const status = isMoment ? srMomentStatus(idx) : '';
+                        const isCurrent = idx === current;
+                        let badge = '';
+                        if (status === 'reviewed') badge = '<i class="bi bi-check-circle-fill sr-mv-ok" aria-label="Reviewed"></i>';
+                        else if (status === 'needs-review' && !(isCurrent && !srBrowsing())) badge = '<span class="sr-mv-flag">Need review</span>';
+                        else if (isMoment) badge = '<i class="bi bi-record-circle sr-mv-todo" aria-label="Moment to review"></i>';
+                        const cls = ['sr-move', isMoment ? 'is-moment' : '', status ? `s-${status}` : '', isCurrent ? 'is-current' : ''].filter(Boolean).join(' ');
+                        const san = formatSanWithFigurines((m.move || '').replace(/[?!]+$/, ''), m.is_white);
+                        return `<button type="button" class="${cls}" data-sr-move="${idx}"${isCurrent ? ' aria-current="true"' : ''}>${san}${badge}</button>`;
+                    };
+                    html += `<div class="sr-move-pair"><span class="sr-move-no">${moves[i].move_number}.</span>${cell(i)}${cell(i + 1)}</div>`;
+                }
+                list.innerHTML = html;
+                const active = list.querySelector('.sr-move.is-current');
+                if (active) {
+                    // Scroll the list itself, never the page
+                    const top = active.offsetTop - list.offsetTop;
+                    if (top < list.scrollTop || top + active.offsetHeight > list.scrollTop + list.clientHeight) {
+                        list.scrollTop = Math.max(0, top - list.clientHeight / 2);
+                    }
+                    const left = active.offsetLeft - list.offsetLeft;
+                    if (left < list.scrollLeft || left + active.offsetWidth > list.scrollLeft + list.clientWidth) {
+                        list.scrollLeft = Math.max(0, left - list.clientWidth / 2);
+                    }
+                }
+            }
+
+            function srMomentChipsHtml(indices) {
+                return `<div class="sr-chips">${indices.map(i => {
+                    const status = srMomentStatus(i);
+                    return `<button type="button" class="sr-chip sr-moment-chip s-${status}" data-sr-goto-move="${i}">${srMoveLabel(moves[i])}${status === 'needs-review' ? ' · Need review' : (status === 'reviewed' ? ' <i class="bi bi-check-lg"></i>' : '')}</button>`;
+                }).join('')}</div>`;
+            }
+
+            function srBlockedHtml() {
+                const left = (selfReview.blocked || []).filter(i => srMomentStatus(i) !== 'reviewed');
+                if (left.length === 0) return '';
+                return `<div class="sr-blocked" role="alert">
+                    <div><i class="bi bi-exclamation-triangle-fill"></i> <b>Review ${left.length === 1 ? 'this moment' : `these ${left.length} moments`} before moving on.</b> Rate both the position and your move.</div>
+                    ${srMomentChipsHtml(left)}
+                </div>`;
+            }
+
+            function srBrowseHtml() {
+                const c = selfReview.browse;
+                const m = c >= 0 ? moves[c] : null;
+                const left = SelfReview.unreviewedMoments(selfReview.plan, selfReview.answers, []);
+                return `
+                    <div class="sr-kicker">Looking around</div>
+                    <h3 class="sr-heading">${m ? `After ${srMoveLabel(m)}` : 'Starting position'}</h3>
+                    <p class="sr-text">Step through the game with the move list or the ← → keys. Engine marks stay hidden. Moments marked <b>Need review</b> must be answered before you move on to the next phase.</p>
+                    ${left.length ? `<div class="sr-question">Still to review</div>${srMomentChipsHtml(left)}` : '<p class="sr-text"><i class="bi bi-check-circle-fill sr-mv-ok"></i> Every moment is reviewed.</p>'}`;
+            }
+
 
             function srPhaseBarHtml(step) {
                 if (!step || !selfReview.plan) return '';
@@ -12305,6 +12580,10 @@
                     ? `<div class="sr-candidate"><i class="bi bi-arrow-up-right"></i> Your idea: <b>${formatSanWithFigurines(a.candidate, m.is_white)}</b><button type="button" class="sr-link-btn" data-sr-clear-candidate>Clear</button></div>`
                     : `<div class="sr-candidate"><i class="bi bi-hand-index"></i> Drag a piece on the board to suggest a move. You can skip this.</div>`;
                 const hint = a.rating ? `<span class="sr-muted"> (${escapeHtml(SR_MOVE_HINTS[a.rating] || '')})</span>` : '';
+                const done = SelfReview.isMomentReviewed(a);
+                const status = done
+                    ? '<span class="sr-status is-done"><i class="bi bi-check-circle-fill"></i> Reviewed</span>'
+                    : '<span class="sr-status">Rate the position and your move to finish this moment</span>';
                 return `
                     <div class="sr-kicker">${escapeHtml(range ? range.label : '')} · Moment ${pos} of ${range ? range.moments.length : 0}</div>
                     <h3 class="sr-heading">Move ${m.move_number}: ${color} to play</h3>
@@ -12316,7 +12595,8 @@
                     <div class="sr-question">Do you see a better move?</div>
                     ${candidate}
                     <div class="sr-question">What were you thinking?</div>
-                    <textarea class="sr-note" data-sr-note="moment" rows="3" placeholder="The lines you calculated, what you were worried about, how much time you had…">${escapeHtml(a.note || '')}</textarea>`;
+                    <textarea class="sr-note" data-sr-note="moment" rows="3" placeholder="The lines you calculated, what you were worried about, how much time you had…">${escapeHtml(a.note || '')}</textarea>
+                    <div class="sr-status-row">${status}</div>`;
             }
 
             function srCheckpointHtml(step) {
@@ -12455,10 +12735,26 @@
                 }
             }
 
-            function srGoToStep(stepIndex) {
+            // Moving into a later phase (or to the comparison) needs every earlier moment
+            // answered. The move list (`free`) can jump anywhere to look or answer.
+            function srGoToStep(stepIndex, opts = {}) {
                 if (!selfReview) return;
-                selfReview.step = Math.max(0, Math.min(stepIndex, selfReview.steps.length - 1));
+                const target = Math.max(0, Math.min(stepIndex, selfReview.steps.length - 1));
+                if (!opts.free) {
+                    const blockers = SelfReview.stepBlockers(selfReview.plan, selfReview.steps, selfReview.answers, selfReview.step, target);
+                    if (blockers.length > 0) {
+                        srMarkVisited(blockers);
+                        selfReview.blocked = blockers;
+                        srSave();
+                        renderSelfReview();
+                        return;
+                    }
+                }
+                selfReview.browse = null;
+                selfReview.blocked = [];
+                selfReview.step = target;
                 const step = srCurrentStep();
+                if (step && step.type === 'moment') srMarkVisited(step.index);
                 if (step && step.type === 'reveal') selfReview.completed = true;
                 srSave();
                 renderSelfReview();
@@ -12529,7 +12825,15 @@
                     const open = e.target.closest('[data-sr-open]');
                     if (open) {
                         exitSelfReview({ goTo: parseInt(open.dataset.srOpen, 10) });
+                        return;
                     }
+                    const moveBtn = e.target.closest('[data-sr-move], [data-sr-goto-move]');
+                    if (moveBtn) {
+                        srOpenMove(parseInt(moveBtn.dataset.srMove !== undefined ? moveBtn.dataset.srMove : moveBtn.dataset.srGotoMove, 10));
+                        return;
+                    }
+                    const stepMove = e.target.closest('[data-sr-step-move]');
+                    if (stepMove) srStepCursor(parseInt(stepMove.dataset.srStepMove, 10));
                 });
 
                 panel.addEventListener('change', (e) => {
@@ -12553,6 +12857,12 @@
                 const next = document.getElementById('srNext');
                 if (next) next.addEventListener('click', () => {
                     if (!selfReview) return;
+                    if (srBrowsing()) {
+                        selfReview.browse = null;
+                        renderSelfReview();
+                        srShowBoard();
+                        return;
+                    }
                     const step = srCurrentStep();
                     if (step && step.type === 'reveal') exitSelfReview();
                     else srGoToStep(selfReview.step + 1);
