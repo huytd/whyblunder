@@ -4007,6 +4007,9 @@
             border-radius: 8px;
         }
         .sr-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .sr-row.is-clickable { cursor: pointer; }
+        .sr-row.is-clickable:hover { border-color: var(--lic-border-strong); }
+        .sr-row.is-focus { border-color: var(--sr-accent); box-shadow: inset 0 0 0 1px var(--sr-accent); }
         .sr-row-move { font-weight: 800; color: var(--lic-text-bright); }
         .sr-row-engine { display: inline-flex; align-items: center; font-size: var(--lic-fs-sm); font-weight: 700; color: var(--lic-text-secondary); }
         .sr-row-head .sr-link-btn { margin-left: auto; }
@@ -12147,6 +12150,7 @@
                     candidateWps: {},
                     visited: [],     // moments the player has opened (unanswered ones need review)
                     browse: null,    // index of the move being looked at outside the steps, or null
+                    revealFocus: null, // moment highlighted on the comparison screen
                     blocked: [],     // moments to answer before the last attempted step forward
                     completed: false,
                     skipped: false
@@ -12279,11 +12283,24 @@
                 if (!step) return;
                 const last = srBrowsing() ? selfReview.browse : srStepLastMoveIndex(step);
                 if (last >= 0 && moveHistory[last]) updateBoardSquareHighlights(moveHistory[last].from, moveHistory[last].to);
-                if (srBrowsing() || step.type !== 'moment') return;
-                const played = moveHistory[step.index];
+                if (srBrowsing()) {
+                    if (srOnReveal() && selfReview.revealFocus !== null) srDrawMomentArrows(selfReview.revealFocus, true);
+                    return;
+                }
+                if (step.type === 'moment') srDrawMomentArrows(step.index, false);
+            }
+
+            // Blue: the move played. Purple: the player's idea. Green: the engine's move (comparison only).
+            function srDrawMomentArrows(index, withEngine) {
+                const played = moveHistory[index];
                 if (played) drawArrow(played.from, played.to, 'current');
-                const a = selfReview.answers.moments[step.index];
+                const a = selfReview.answers.moments[index];
                 if (a && a.candidateFrom && a.candidateTo) drawArrow(a.candidateFrom, a.candidateTo, 'candidate');
+                const best = withEngine && moves[index] && moves[index].analysis && moves[index].analysis.best_move;
+                if (!best) return;
+                let m = null;
+                try { m = new Chess(selfReview.fens[index]).move(best); } catch (e) {}
+                if (m && !(played && played.from === m.from && played.to === m.to)) drawArrow(m.from, m.to, 'better');
             }
 
             function handleSelfReviewDragStart(source, piece) {
@@ -12350,7 +12367,7 @@
                 renderSrMoves();
                 footer.hidden = false;
 
-                if (srBrowsing()) {
+                if (srBrowsing() && !srOnReveal()) {
                     back.classList.add('d-none');
                     next.classList.remove('is-blocked');
                     next.innerHTML = '<i class="bi bi-arrow-return-left"></i> Back to the review';
@@ -12380,7 +12397,43 @@
                 else html = srRevealHtml();
                 body.innerHTML = srBlockedHtml() + html;
                 body.scrollTop = 0;
-                if (isReveal) srEvaluateCandidates();
+                if (isReveal) {
+                    srRevealHighlight();
+                    srEvaluateCandidates();
+                }
+            }
+
+            function srOnReveal() {
+                const step = srCurrentStep();
+                return Boolean(step && step.type === 'reveal');
+            }
+
+            // Comparison screen: moving through the game only moves the board and
+            // highlights the matching moment's row; the comparison stays put.
+            function srRevealGoTo(cursor, focus) {
+                selfReview.browse = cursor;
+                selfReview.revealFocus = focus;
+                renderSrMoves();
+                srShowBoard();
+                srRevealHighlight();
+            }
+
+            function srRevealHighlight() {
+                const body = document.getElementById('srBody');
+                if (!body) return;
+                const focus = srBrowsing() ? selfReview.revealFocus : null;
+                let target = null;
+                body.querySelectorAll('[data-sr-row]').forEach(row => {
+                    const on = focus !== null && Number(row.dataset.srRow) === focus;
+                    row.classList.toggle('is-focus', on);
+                    if (on) target = row;
+                });
+                if (target) {
+                    const top = target.offsetTop - body.offsetTop;
+                    if (top < body.scrollTop || top + target.offsetHeight > body.scrollTop + body.clientHeight) {
+                        body.scrollTop = Math.max(0, top - 12);
+                    }
+                }
             }
 
             // ---- Move list: walk the whole game without engine marks ----
@@ -12401,6 +12454,7 @@
             // The move highlighted in the list: the moment being reviewed, the browsed
             // move, or the last move on the board for phase steps
             function srListIndex() {
+                if (srBrowsing() && srOnReveal() && selfReview.revealFocus !== null) return selfReview.revealFocus;
                 if (srBrowsing()) return selfReview.browse;
                 const step = srCurrentStep();
                 if (!step) return -1;
@@ -12418,6 +12472,11 @@
                 if (!selfReview || !selfReview.side) return;
                 const i = Math.max(-1, Math.min(index, moves.length - 1));
                 const stepIdx = i >= 0 ? srMomentStepIndex(i) : -1;
+                if (srOnReveal()) {
+                    if (stepIdx >= 0) srRevealGoTo(i - 1, i);
+                    else srRevealGoTo(i, null);
+                    return;
+                }
                 if (stepIdx >= 0) {
                     srGoToStep(stepIdx, { free: true });
                     return;
@@ -12434,6 +12493,10 @@
                 const c = Math.max(-1, Math.min(srCursor() + delta, moves.length - 1));
                 if (c === srCursor() && !srBrowsing()) return;
                 const stepIdx = srMomentStepIndex(c + 1);
+                if (srOnReveal()) {
+                    srRevealGoTo(c, stepIdx >= 0 ? c + 1 : null);
+                    return;
+                }
                 if (stepIdx >= 0) {
                     srGoToStep(stepIdx, { free: true });
                     return;
@@ -12659,7 +12722,7 @@
                     <div class="sr-stats">${stats}</div>
                     <div class="sr-question">Takeaways</div>
                     <ul class="sr-takeaways">${report.takeaways.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
-                    <p class="sr-text sr-muted">Green: you matched the engine. Yellow: one step off. Red: a big gap. Open a moment to see the engine's explanation.</p>
+                    <p class="sr-text sr-muted">Green: you matched the engine. Yellow: one step off. Red: a big gap. Click a moment or step through the moves to see it on the board: blue is your move, purple your idea, green the engine's move. "Open" shows the engine's explanation.</p>
                     ${phaseBlocks}`;
             }
 
@@ -12676,7 +12739,7 @@
                 }
                 const best = r.bestMove ? `${formatSanWithFigurines(r.bestMove, m.is_white)}${r.bestEvaluation ? ` <span class="sr-muted">(${escapeHtml(r.bestEvaluation)})</span>` : ''}` : '—';
                 return `
-                    <div class="sr-row">
+                    <div class="sr-row is-clickable" data-sr-row="${r.index}" title="Show this position on the board">
                         <div class="sr-row-head">
                             <span class="sr-row-move">${srMoveLabel(m)}</span>
                             <span class="sr-row-engine">${ccQualityIconHtml(m)}${key ? CC_QUALITY_LABELS[key] : ''}</span>
@@ -12731,6 +12794,7 @@
                         const scroll = body ? body.scrollTop : 0;
                         body.innerHTML = srRevealHtml();
                         body.scrollTop = scroll;
+                        srRevealHighlight();
                     }
                 }
             }
@@ -12751,6 +12815,7 @@
                     }
                 }
                 selfReview.browse = null;
+                selfReview.revealFocus = null;
                 selfReview.blocked = [];
                 selfReview.step = target;
                 const step = srCurrentStep();
@@ -12833,7 +12898,12 @@
                         return;
                     }
                     const stepMove = e.target.closest('[data-sr-step-move]');
-                    if (stepMove) srStepCursor(parseInt(stepMove.dataset.srStepMove, 10));
+                    if (stepMove) {
+                        srStepCursor(parseInt(stepMove.dataset.srStepMove, 10));
+                        return;
+                    }
+                    const row = e.target.closest('[data-sr-row]');
+                    if (row) srOpenMove(parseInt(row.dataset.srRow, 10));
                 });
 
                 panel.addEventListener('change', (e) => {
@@ -12857,7 +12927,7 @@
                 const next = document.getElementById('srNext');
                 if (next) next.addEventListener('click', () => {
                     if (!selfReview) return;
-                    if (srBrowsing()) {
+                    if (srBrowsing() && !srOnReveal()) {
                         selfReview.browse = null;
                         renderSelfReview();
                         srShowBoard();
