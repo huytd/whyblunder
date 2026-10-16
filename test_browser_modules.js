@@ -638,6 +638,8 @@ console.log("Testing SelfReview...");
     assert.ok(indexHtml.includes('id="srSkipToEngine"'), 'Self review must offer a way straight to the engine');
     assert.ok(indexHtml.includes('id="ccSelfReview"'), 'Game Review summary must link to the self review');
     assert.ok(indexHtml.includes('id="srMovesList"'), 'Self review must offer a spoiler-free move list');
+    assert.ok(indexHtml.includes('id="ccSplitHandle"'), 'Analysis / move list split must be resizable');
+    assert.ok(indexHtml.includes("const SPLIT_KEY = 'whyblunder_analysis_split';"), 'The split height is remembered');
     assert.ok(indexHtml.includes('function srRevealGoTo(cursor, focus)'), 'Moving through the game on the comparison screen keeps the comparison visible');
     assert.ok(indexHtml.includes('if (srBrowsing() && !srOnReveal()) {'), 'The comparison is not swapped for the browse card');
     assert.ok(indexHtml.includes('<span class="sr-mv-flag">Need review</span>'), 'Moments left unanswered must be flagged "Need review"');

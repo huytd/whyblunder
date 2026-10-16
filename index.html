@@ -4637,6 +4637,7 @@
 
         /* --- Sidebar (desktop only) --- */
         .cc-sidebar { display: none; }
+        .cc-split-handle { display: none; }
         .cc-settings-menu {
             min-width: 220px;
             background: var(--lic-bg-surface);
@@ -4772,6 +4773,45 @@
                 min-height: 0;
                 border-radius: var(--cc-radius);
             }
+            /* Drag the gap between Move Analysis and Moves to share the column */
+            body[data-theme="cc"] .col-moves { position: relative; top: auto; }
+            body[data-theme="cc"] .cc-split-handle {
+                display: block;
+                position: absolute;
+                top: -12px;
+                left: 0;
+                right: 0;
+                height: 12px;
+                cursor: row-resize;
+                touch-action: none;
+                z-index: 2;
+            }
+            body[data-theme="cc"] .cc-split-handle::after {
+                content: '';
+                position: absolute;
+                top: 4px;
+                left: 50%;
+                width: 44px;
+                height: 4px;
+                margin-left: -22px;
+                border-radius: 2px;
+                background: var(--lic-border-strong);
+                opacity: 0;
+                transition: opacity 0.15s, background 0.15s;
+            }
+            body[data-theme="cc"] .cc-split-handle:hover::after,
+            body[data-theme="cc"] .cc-split-handle:focus-visible::after,
+            body.cc-split-dragging .cc-split-handle::after {
+                opacity: 1;
+                background: var(--cc-cta);
+            }
+            body[data-theme="cc"] .cc-split-handle:focus-visible { outline: none; }
+            body.cc-split-dragging { cursor: row-resize; user-select: none; }
+            body[data-theme="cc"].cc-split-custom:not(.coach-mode) .studio-grid {
+                grid-template-rows: var(--cc-analysis-h) minmax(0, 1fr);
+            }
+            body[data-theme="cc"].cc-split-custom .col-analysis { max-height: none; }
+            body[data-theme="cc"].cc-split-custom .col-analysis .lic-panel { height: 100%; }
             body[data-theme="cc"] .analysis-container {
                 max-height: none;
                 min-height: 120px;
@@ -5957,6 +5997,7 @@
 
             <!-- COLUMN 3 (RIGHT): MOVE LIST & CONTROLS -->
             <div class="col-moves">
+                <div class="cc-split-handle" id="ccSplitHandle" role="separator" aria-orientation="horizontal" aria-label="Resize the analysis and move list (double-click to reset)" title="Drag to resize · double-click to reset" tabindex="0"></div>
                 <div class="lic-panel">
                     <!-- Move List Header -->
                     <div class="lic-panel-header">
@@ -13331,6 +13372,93 @@
                 });
 
                 renderReviewSummary([]);
+            })();
+
+            // Desktop chess.com shell: drag the gap between Move Analysis and Moves.
+            // The chosen height is remembered; double-click (or Home) resets to the default.
+            (function initCcSplit() {
+                const SPLIT_KEY = 'whyblunder_analysis_split';
+                const handle = document.getElementById('ccSplitHandle');
+                const colAnalysis = document.querySelector('.col-analysis');
+                const grid = document.querySelector('.studio-grid');
+                if (!handle || !colAnalysis || !grid) return;
+                const MIN_ANALYSIS = 120;
+                const MIN_MOVE_ROWS = 120; // the move list's own min-height
+                const GAP = 12;
+
+                // Keep the Moves panel's header, graph, line pills and nav bar visible
+                const minMoves = () => {
+                    const panel = document.querySelector('.col-moves .lic-panel');
+                    if (!panel) return 260;
+                    let fixed = 0;
+                    Array.from(panel.children).forEach(el => {
+                        if (el.id !== 'analysisContainer' && el.offsetParent !== null) fixed += el.offsetHeight;
+                    });
+                    return fixed + MIN_MOVE_ROWS;
+                };
+
+                const clamp = (h) => {
+                    const max = grid.getBoundingClientRect().height - GAP - minMoves();
+                    return Math.round(Math.max(MIN_ANALYSIS, Math.min(h, Math.max(MIN_ANALYSIS, max))));
+                };
+                const apply = (h) => {
+                    document.body.style.setProperty('--cc-analysis-h', `${clamp(h)}px`);
+                    document.body.classList.add('cc-split-custom');
+                };
+                const save = () => {
+                    const v = parseInt(document.body.style.getPropertyValue('--cc-analysis-h'), 10);
+                    try { if (v) localStorage.setItem(SPLIT_KEY, String(v)); } catch (e) {}
+                };
+                const reset = () => {
+                    document.body.classList.remove('cc-split-custom');
+                    document.body.style.removeProperty('--cc-analysis-h');
+                    try { localStorage.removeItem(SPLIT_KEY); } catch (e) {}
+                };
+
+                let saved = 0;
+                try { saved = parseInt(localStorage.getItem(SPLIT_KEY), 10) || 0; } catch (e) {}
+                if (saved) apply(saved);
+
+                let startY = 0;
+                let startH = 0;
+                handle.addEventListener('pointerdown', (e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    startY = e.clientY;
+                    startH = colAnalysis.getBoundingClientRect().height;
+                    handle.setPointerCapture(e.pointerId);
+                    document.body.classList.add('cc-split-dragging');
+                });
+                handle.addEventListener('pointermove', (e) => {
+                    if (!handle.hasPointerCapture(e.pointerId)) return;
+                    apply(startH + (e.clientY - startY));
+                });
+                const endDrag = (e) => {
+                    if (!handle.hasPointerCapture(e.pointerId)) return;
+                    handle.releasePointerCapture(e.pointerId);
+                    document.body.classList.remove('cc-split-dragging');
+                    save();
+                };
+                handle.addEventListener('pointerup', endDrag);
+                handle.addEventListener('pointercancel', endDrag);
+                handle.addEventListener('dblclick', reset);
+                handle.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        apply(colAnalysis.getBoundingClientRect().height + (e.key === 'ArrowDown' ? 24 : -24));
+                        save();
+                    } else if (e.key === 'Home') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        reset();
+                    }
+                });
+                window.addEventListener('resize', () => {
+                    if (document.body.classList.contains('cc-split-custom')) {
+                        apply(parseInt(document.body.style.getPropertyValue('--cc-analysis-h'), 10) || MIN_ANALYSIS);
+                    }
+                });
             })();
 
             window.switchAppMode = switchAppMode;
