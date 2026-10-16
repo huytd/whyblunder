@@ -3800,6 +3800,294 @@
 
         /* ===== MOBILE REVAMP v2 — END ===== */
 
+        /* ===== SELF REVIEW (think it through before the engine) — START ===== */
+        .self-review[hidden] { display: none !important; }
+        .self-review {
+            --sr-accent: var(--lic-blue);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            background: var(--lic-bg-surface);
+            border: 1px solid var(--lic-border-subtle);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        body.self-review-active .col-analysis,
+        body.self-review-active .col-moves,
+        body.self-review-active .cc-review-summary {
+            display: none !important;
+        }
+        body.self-review-active #evalGauge,
+        body.self-review-active #mobileEvalBar {
+            visibility: hidden;
+        }
+        .sr-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--lic-border);
+        }
+        .sr-title {
+            flex: 1;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--lic-text-bright);
+        }
+        .sr-title .bi { color: var(--sr-accent); }
+        .sr-link-btn {
+            min-height: 36px;
+            padding: 4px 8px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--lic-text-secondary);
+            font-size: var(--lic-fs-sm);
+            font-weight: 600;
+        }
+        .sr-link-btn:hover { background: var(--lic-bg-surface-hover); color: var(--lic-text-bright); }
+        .sr-phasebar { display: flex; gap: 6px; padding: 10px 14px 0; }
+        .sr-phasebar:empty { display: none; }
+        .sr-phase-pill {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 0;
+            font-size: var(--lic-fs-sm);
+            font-weight: 700;
+            color: var(--lic-text-muted);
+        }
+        .sr-phase-pill::before {
+            content: '';
+            height: 4px;
+            border-radius: 2px;
+            background: var(--lic-border-strong);
+        }
+        .sr-phase-pill.is-done { color: var(--lic-text-secondary); }
+        .sr-phase-pill.is-done::before { background: var(--q-good); }
+        .sr-phase-pill.is-current { color: var(--lic-text-bright); }
+        .sr-phase-pill.is-current::before { background: var(--sr-accent); }
+        .sr-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 14px;
+            overscroll-behavior: contain;
+        }
+        .sr-footer {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px 12px;
+            border-top: 1px solid var(--lic-border);
+        }
+        .sr-footer[hidden] { display: none; }
+        .sr-footer .cc-btn-cta { flex: 1; min-height: 44px; font-size: 1rem; }
+        .sr-btn-secondary {
+            min-height: 44px;
+            padding: 0 16px;
+            border: none;
+            border-radius: 8px;
+            background: var(--lic-bg-surface-hover);
+            color: var(--lic-text-primary);
+            font-weight: 700;
+        }
+        .sr-btn-secondary:disabled { opacity: 0.4; }
+        .sr-kicker {
+            margin-bottom: 4px;
+            font-size: var(--lic-fs-sm);
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--lic-text-muted);
+        }
+        .sr-heading { margin: 0 0 6px; font-size: 1.0625rem; font-weight: 800; color: var(--lic-text-bright); }
+        .sr-text { margin: 0 0 10px; font-size: var(--lic-fs-base); line-height: 1.5; color: var(--lic-text-primary); }
+        .sr-text b { color: var(--lic-text-bright); }
+        .sr-muted { color: var(--lic-text-secondary); }
+        .sr-steps-list { margin: 0 0 14px; padding-left: 20px; font-size: var(--lic-fs-base); line-height: 1.6; color: var(--lic-text-primary); }
+        .sr-question { margin: 14px 0 6px; font-size: var(--lic-fs-base); font-weight: 700; color: var(--lic-text-bright); }
+        .sr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .sr-chip {
+            min-height: 36px;
+            padding: 6px 12px;
+            border: 1px solid var(--lic-border-strong);
+            border-radius: 18px;
+            background: transparent;
+            color: var(--lic-text-primary);
+            font-size: var(--lic-fs-base);
+            font-weight: 600;
+        }
+        .sr-chip:hover { background: var(--lic-bg-surface-hover); }
+        .sr-chip.is-selected { background: var(--sr-accent); border-color: var(--sr-accent); color: #fff; }
+        .sr-note {
+            width: 100%;
+            min-height: 64px;
+            padding: 8px 10px;
+            resize: vertical;
+            border: 1px solid var(--lic-border-strong);
+            border-radius: 6px;
+            background: var(--lic-bg-input);
+            color: var(--lic-text-primary);
+            font-size: var(--lic-fs-base);
+        }
+        .sr-note:focus { outline: none; border-color: var(--sr-accent); }
+        .sr-candidate {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 40px;
+            padding: 6px 10px;
+            border: 1px dashed var(--lic-border-strong);
+            border-radius: 6px;
+            font-size: var(--lic-fs-base);
+            color: var(--lic-text-secondary);
+        }
+        .sr-candidate b { color: var(--lic-text-bright); }
+        .sr-candidate .sr-link-btn { margin-left: auto; }
+        .sr-side-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 12px; }
+        .sr-side-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 0;
+            padding: 12px 8px;
+            border: 2px solid var(--lic-border-strong);
+            border-radius: 8px;
+            background: var(--lic-bg-surface-hover);
+            color: var(--lic-text-bright);
+            font-weight: 800;
+        }
+        .sr-side-btn:hover, .sr-side-btn.is-suggested { border-color: var(--sr-accent); }
+        .sr-side-btn small {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 600;
+            color: var(--lic-text-secondary);
+        }
+        .sr-side-swatch { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #4b4847; }
+        .sr-side-swatch.is-white { background: #fff; }
+        .sr-side-swatch.is-black { background: #1f1e1b; }
+        .sr-check { display: flex; align-items: center; gap: 8px; font-size: var(--lic-fs-sm); color: var(--lic-text-secondary); }
+        .sr-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 12px; }
+        .sr-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 10px 8px;
+            border-radius: 8px;
+            background: var(--lic-bg-surface-hover);
+            text-align: center;
+        }
+        .sr-stat b { font-size: 1.25rem; font-weight: 800; color: var(--lic-text-bright); }
+        .sr-stat span { font-size: var(--lic-fs-sm); line-height: 1.3; color: var(--lic-text-secondary); }
+        .sr-takeaways { margin: 0 0 14px; padding-left: 18px; font-size: var(--lic-fs-base); line-height: 1.5; color: var(--lic-text-primary); }
+        .sr-takeaways li + li { margin-top: 4px; }
+        .sr-phase-block { margin-top: 14px; }
+        .sr-phase-head {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-weight: 800;
+            color: var(--lic-text-bright);
+        }
+        .sr-phase-head span { font-size: var(--lic-fs-sm); font-weight: 600; color: var(--lic-text-muted); }
+        .sr-row {
+            margin-bottom: 8px;
+            padding: 10px;
+            border: 1px solid var(--lic-border);
+            border-radius: 8px;
+        }
+        .sr-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .sr-row-move { font-weight: 800; color: var(--lic-text-bright); }
+        .sr-row-engine { display: inline-flex; align-items: center; font-size: var(--lic-fs-sm); font-weight: 700; color: var(--lic-text-secondary); }
+        .sr-row-head .sr-link-btn { margin-left: auto; }
+        .sr-compare { width: 100%; border-collapse: collapse; font-size: var(--lic-fs-sm); }
+        .sr-compare th { padding: 2px 4px; font-weight: 700; color: var(--lic-text-muted); text-align: left; }
+        .sr-compare td { padding: 4px; border-top: 1px solid var(--lic-border-subtle); color: var(--lic-text-primary); }
+        .sr-compare td:first-child { width: 28%; color: var(--lic-text-secondary); }
+        .sr-compare td.sr-you::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 6px;
+            border-radius: 50%;
+            background: var(--lic-border-strong);
+            vertical-align: 1px;
+        }
+        .sr-compare td.v-match::before { background: var(--q-good); }
+        .sr-compare td.v-close::before { background: var(--q-inaccuracy); }
+        .sr-compare td.v-off::before { background: var(--q-blunder); }
+        .sr-row-note, .sr-move-note-text {
+            margin-top: 6px;
+            padding: 6px 8px;
+            border-left: 3px solid var(--sr-accent, var(--lic-blue));
+            border-radius: 0 4px 4px 0;
+            background: var(--lic-bg-surface-hover);
+            font-size: var(--lic-fs-sm);
+            line-height: 1.45;
+            color: var(--lic-text-primary);
+            white-space: pre-wrap;
+        }
+        .sr-move-note {
+            margin-top: 10px;
+            padding: 8px 10px;
+            border: 1px solid var(--lic-border);
+            border-radius: 6px;
+            font-size: var(--lic-fs-sm);
+            color: var(--lic-text-secondary);
+        }
+        .sr-move-note-title { margin-bottom: 4px; font-weight: 800; color: var(--lic-text-bright); }
+        .sr-move-note b { color: var(--lic-text-bright); }
+        .arrow-candidate { fill: rgba(156, 106, 222, 0.8); }
+
+        @media (min-width: 992px) {
+            body.self-review-active .studio-grid {
+                grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+                max-width: 1280px;
+                margin: 0 auto;
+            }
+            body.self-review-active .col-board { grid-column: 1; grid-row: 1 / span 2; }
+            body.self-review-active .self-review {
+                grid-column: 2;
+                grid-row: 1 / span 2;
+                position: sticky;
+                top: 14px;
+                max-height: calc(100vh - 90px);
+            }
+            body[data-theme="cc"].self-review-active .self-review { position: static; max-height: none; }
+        }
+        @media (max-width: 991.98px) {
+            body.self-review-active .m-sheet,
+            body.self-review-active .m-sheet-scrim,
+            body.self-review-active .mobile-nav-toolbar {
+                display: none !important;
+            }
+            body.self-review-active .col-board { order: 1; flex-shrink: 0; }
+            body.self-review-active .board-container-card {
+                max-width: min(100%, calc(var(--app-h) - var(--m-appbar-h) - 330px));
+                margin-inline: auto;
+            }
+            body.self-review-active .self-review {
+                order: 2;
+                flex: 1 1 auto;
+                min-height: 0;
+                margin-bottom: calc(6px + var(--safe-bottom));
+            }
+            body.self-review-active .sr-header { padding: 4px 10px; }
+            body.self-review-active .sr-body { padding: 10px 12px; }
+        }
+        /* ===== SELF REVIEW — END ===== */
+
         /* ===== CHESS.COM THEME (data-theme="cc") — START ===== */
         :root {
             --cc-cta: #d64f00;
@@ -5602,6 +5890,7 @@
                             <span id="keyMomentsSummary" class="badge bg-warning bg-opacity-25 text-warning font-monospace d-none" style="font-size:var(--lic-fs-sm);">0 moments</span>
                         </div>
                         <div class="d-flex align-items-center gap-1">
+                            <button id="btnMovesSelfReview" class="lic-chip-btn d-none" title="Self review: the critical moments, on your own"><i class="bi bi-pencil-square"></i><span class="sr-open-label visually-hidden">Self review</span></button>
                             <button id="btnMovesImport" class="lic-chip-btn" title="Import game"><i class="bi bi-box-arrow-in-down me-1"></i> Import</button>
                             <button id="btnFlip" class="lic-chip-btn" title="Flip Board (F)"><i class="bi bi-arrow-left-right me-1"></i> Flip</button>
                         </div>
@@ -5767,6 +6056,21 @@
                 <div class="cc-review-body" id="ccReviewBody"></div>
                 <footer class="cc-review-footer">
                     <button type="button" class="cc-btn-cta w-100" id="ccStartReview">Start Review</button>
+                    <button type="button" class="sr-btn-secondary w-100 mt-2" id="ccSelfReview"><i class="bi bi-pencil-square me-1"></i> <span class="sr-open-label">Review it yourself</span></button>
+                </footer>
+            </section>
+
+            <!-- SELF REVIEW: the player reviews the critical moments before seeing the engine -->
+            <section class="self-review" id="selfReviewPanel" aria-labelledby="selfReviewTitle" hidden>
+                <header class="sr-header">
+                    <h2 class="sr-title" id="selfReviewTitle"><i class="bi bi-pencil-square"></i> Self Review</h2>
+                    <button type="button" class="sr-link-btn" id="srSkipToEngine">Show engine analysis <i class="bi bi-arrow-right"></i></button>
+                </header>
+                <div class="sr-phasebar" id="srPhaseBar"></div>
+                <div class="sr-body" id="srBody" aria-live="polite"></div>
+                <footer class="sr-footer" id="srFooter">
+                    <button type="button" class="sr-btn-secondary" id="srBack"><i class="bi bi-chevron-left"></i> Back</button>
+                    <button type="button" class="cc-btn-cta" id="srNext">Next</button>
                 </footer>
             </section>
 
@@ -6012,6 +6316,7 @@
     <script src="js/analysis-cache.js"></script>
     <script src="js/browser-analyzer.js"></script>
     <script src="js/coach-manager.js"></script>
+    <script src="js/self-review.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -6325,12 +6630,14 @@
                     if (currentAppMode === 'coach') {
                         return handleCoachDragStart(source, piece, position, orientation);
                     }
+                    if (isSelfReviewActive()) return handleSelfReviewDragStart(source, piece);
                     return handleExploreDragStart(source, piece);
                 },
                 onDrop: function(source, target) {
                     if (currentAppMode === 'coach') {
                         return handleCoachDrop(source, target);
                     }
+                    if (isSelfReviewActive()) return handleSelfReviewDrop(source, target);
                     return handleExploreDrop(source, target);
                 },
                 onSnapEnd: function() {
@@ -6404,7 +6711,9 @@
                 boardResizeDebounce = setTimeout(() => {
                     if (board && board.resize) board.resize();
                     updateSvgDimensions();
-                    if (currentMoveIndex >= 0 && !isPlayingVariation && !isInVariationMode) {
+                    if (isSelfReviewActive()) {
+                        srDrawBoardMarks();
+                    } else if (currentMoveIndex >= 0 && !isPlayingVariation && !isInVariationMode) {
                         drawMoveArrows(currentMoveIndex);
                     }
                 }, 100);
@@ -7021,6 +7330,8 @@
                 if (['input', 'textarea', 'select'].includes(document.activeElement.tagName.toLowerCase())) {
                     return;
                 }
+                // Self review owns the board: game navigation would reveal the engine's verdicts
+                if (isSelfReviewActive()) return;
                 if (currentAppMode === 'coach') {
                     if (e.key === 'ArrowLeft') {
                         e.preventDefault();
@@ -7232,6 +7543,7 @@
                         preprocessMoveData();
                         displayAnalysis(moves);
                         goToFirstMove();
+                        maybeStartSelfReview();
 
                         if (analysisStatusBadge) {
                             analysisStatusBadge.className = 'badge bg-success text-light';
@@ -7277,6 +7589,7 @@
                                 preprocessMoveData();
                                 displayAnalysis(moves);
                                 goToFirstMove();
+                                maybeStartSelfReview();
 
                                 if (analysisStatusBadge) {
                                     analysisStatusBadge.className = 'badge bg-success text-light';
@@ -7364,6 +7677,7 @@
                     preprocessMoveData();
                     displayAnalysis(moves);
                     goToFirstMove();
+                    maybeStartSelfReview();
                     if (analysisStatusBadge) {
                         analysisStatusBadge.className = 'badge bg-success text-light';
                         analysisStatusBadge.textContent = 'COMPLETE';
@@ -7955,7 +8269,7 @@
                 renderMobileMoveTicker(movesList);
                 syncMobileOffcanvas(movesList);
                 renderReviewSummary(movesList);
-                openReviewSummary();
+                if (!isSelfReviewActive()) openReviewSummary();
             }
 
             function renderMobileMoveTicker(movesList) {
@@ -8220,6 +8534,7 @@
                     }
                 }
 
+                html += srMoveNoteHtml(index);
                 moveExplanation.innerHTML = html;
                 
                 moveExplanation.querySelectorAll('.var-move-btn').forEach(btn => {
@@ -11118,6 +11433,7 @@
 
             function switchAppMode(mode) {
                 if (mode === currentAppMode) return;
+                if (mode === 'coach') closeSelfReviewPanel();
                 currentAppMode = mode;
                 cancelPendingCoachResponse();
                 hideBlunderTakebackCard();
@@ -11287,6 +11603,7 @@
                     const pgn = coachManager.getPgn();
                     switchAppMode('analysis');
                     if (pgn && coachManager.moveHistory.length > 0) {
+                        srPendingSide = coachManager.playerColor === 'b' ? 'black' : 'white';
                         if (pgnInput) pgnInput.value = pgn;
                         analyzeGame(pgn);
                     }
@@ -11556,6 +11873,699 @@
             checkUrlForGame();
 
 
+            // ===== SELF REVIEW: the player reviews the critical moments before the engine speaks =====
+            // Phases (opening / middlegame / endgame) each get a plan question, the critical
+            // moments the engine found (without saying what kind of move it was) and an
+            // end-of-phase evaluation. Only then are the answers compared with the engine.
+            const SR_PREF_KEY = 'whyblunder_self_review_pref'; // 'skip' = go straight to the engine review
+            const SR_ME_KEY = 'whyblunder_self_review_me';     // the player name last picked as "me"
+            const SR_PHASE_PROMPTS = {
+                opening: {
+                    ask: 'What did you expect from the opening, and where did your preparation run out?',
+                    placeholder: 'e.g. I knew the line until move 7, then I was on my own…',
+                    end: 'How did you come out of the opening?'
+                },
+                middlegame: {
+                    ask: 'What was your plan in the middlegame?',
+                    placeholder: 'e.g. Attack on the kingside with f4–f5…',
+                    end: 'How did you stand when the middlegame ended?'
+                },
+                endgame: {
+                    ask: 'What was your goal in the endgame?',
+                    placeholder: 'e.g. Activate my king and push the passed pawn…',
+                    end: 'How did you stand at the end of the game?'
+                }
+            };
+            const SR_MOVE_HINTS = {
+                strong: 'the best or close to it',
+                fine: 'a reasonable move',
+                dubious: 'probably not the best',
+                bad: 'a clear mistake'
+            };
+            const SR_CANDIDATE_LABELS = {
+                best: 'the engine\'s move',
+                good: 'as good as the best',
+                ok: 'playable',
+                worse: 'worse than the best',
+                played: 'the move you played'
+            };
+            let selfReview = null;
+            let srPendingSide = null; // known before analysis finishes (Coach games)
+            let srNoteTimer = null;
+            let srKeyCache = { list: null, key: '' };
+
+            function isSelfReviewActive() {
+                return Boolean(selfReview) && document.body.classList.contains('self-review-active');
+            }
+
+            function srReadPref() {
+                try { return localStorage.getItem(SR_PREF_KEY) || 'ask'; } catch (e) { return 'ask'; }
+            }
+
+            function srWritePref(value) {
+                try { localStorage.setItem(SR_PREF_KEY, value); } catch (e) {}
+            }
+
+            function srGameKey() {
+                if (typeof SelfReview === 'undefined' || !moves.length) return '';
+                if (srKeyCache.list !== moves) srKeyCache = { list: moves, key: SelfReview.gameKey(moves) };
+                return srKeyCache.key;
+            }
+
+            function srFens() {
+                return moves.map((m, i) => (moveHistory[i] && moveHistory[i].fen) || null);
+            }
+
+            function srPhaseOf(fen) {
+                return (typeof ChessEvaluator !== 'undefined' && ChessEvaluator.gamePhase) ? ChessEvaluator.gamePhase(fen) : 'middlegame';
+            }
+
+            function srPlayerName(side) {
+                const info = currentGameInfo || {};
+                return (side === 'black' ? info.black : info.white) || (side === 'black' ? 'Black' : 'White');
+            }
+
+            function srMoveLabel(m) {
+                if (!m) return '';
+                return `${m.move_number}${m.is_white ? '.' : '...'} ${formatSanWithFigurines((m.move || '').replace(/[?!]+$/, ''), m.is_white)}`;
+            }
+
+            function srCurrentStep() {
+                if (!selfReview || !selfReview.side) return null;
+                return selfReview.steps[selfReview.step] || null;
+            }
+
+            function srPhaseRange(phase) {
+                return selfReview && selfReview.plan ? selfReview.plan.phases.find(p => p.phase === phase) : null;
+            }
+
+            function srSave() {
+                if (!selfReview || !selfReview.side || typeof SelfReview === 'undefined') return;
+                SelfReview.save(selfReview.key, {
+                    side: selfReview.side,
+                    step: selfReview.step,
+                    answers: selfReview.answers,
+                    candidateWps: selfReview.candidateWps,
+                    completed: selfReview.completed,
+                    skipped: selfReview.skipped || false
+                });
+            }
+
+            function srSetSide(side) {
+                const fens = srFens();
+                const legalMoveCounts = fens.map(f => {
+                    if (!f) return null;
+                    try { return new Chess(f).moves().length; } catch (e) { return null; }
+                });
+                const plan = SelfReview.buildPlan(moves, { side, fens, phaseOf: srPhaseOf, legalMoveCounts });
+                const finalBoard = new Chess();
+                moves.forEach(m => { try { finalBoard.move(m.move); } catch (e) {} });
+                Object.assign(selfReview, {
+                    side,
+                    plan,
+                    fens,
+                    finalFen: finalBoard.fen(),
+                    steps: SelfReview.planSteps(plan),
+                    step: 0
+                });
+                try { localStorage.setItem(SR_ME_KEY, srPlayerName(side)); } catch (e) {}
+                const orientation = side === 'black' ? 'black' : 'white';
+                if (board.orientation() !== orientation) {
+                    board.orientation(orientation);
+                    updatePlayerStripsOrientation();
+                }
+            }
+
+            function maybeStartSelfReview() {
+                if (selfReview) closeSelfReviewPanel();
+                if (typeof SelfReview === 'undefined' || currentAppMode === 'coach' || moves.length < 4) {
+                    srPendingSide = null;
+                    srSyncOpenButtons();
+                    return;
+                }
+                const saved = SelfReview.load(srGameKey());
+                if ((saved && (saved.completed || saved.skipped)) || (!saved && srReadPref() === 'skip')) {
+                    srPendingSide = null;
+                    srSyncOpenButtons();
+                    return;
+                }
+                startSelfReview();
+            }
+
+            function startSelfReview(opts = {}) {
+                if (typeof SelfReview === 'undefined' || moves.length === 0 || currentAppMode === 'coach') return;
+                stopKeyMomentTraversal();
+                stopVariationPlayback();
+                goToFirstMove();
+                const key = srGameKey();
+                const saved = SelfReview.load(key);
+                selfReview = {
+                    key,
+                    side: null,
+                    plan: null,
+                    steps: [],
+                    step: 0,
+                    answers: { moments: {}, phases: {} },
+                    candidateWps: {},
+                    completed: false,
+                    skipped: false
+                };
+                const side = (saved && saved.side) || srPendingSide;
+                srPendingSide = null;
+                if (side) {
+                    srSetSide(side);
+                    if (saved) {
+                        selfReview.answers = saved.answers || selfReview.answers;
+                        selfReview.answers.moments = selfReview.answers.moments || {};
+                        selfReview.answers.phases = selfReview.answers.phases || {};
+                        selfReview.candidateWps = saved.candidateWps || {};
+                        selfReview.completed = Boolean(saved.completed);
+                        const last = selfReview.steps.length - 1;
+                        selfReview.step = (opts.reveal && selfReview.completed) ? last : Math.max(0, Math.min(saved.step || 0, last));
+                    }
+                }
+                closeReviewSummary();
+                document.body.classList.add('self-review-active');
+                const panel = document.getElementById('selfReviewPanel');
+                if (panel) panel.hidden = false;
+                if (window.MobileSheet && window.MobileSheet.isMobile()) window.MobileSheet.set('peek');
+                renderSelfReview();
+                setTimeout(() => {
+                    if (board && board.resize) board.resize();
+                    updateSvgDimensions();
+                    srShowBoard();
+                }, 60);
+            }
+
+            // Hide the panel without touching the board (new game loading, switching to Coach)
+            function closeSelfReviewPanel() {
+                const panel = document.getElementById('selfReviewPanel');
+                if (panel) panel.hidden = true;
+                document.body.classList.remove('self-review-active');
+                clearTimeout(srNoteTimer);
+                selfReview = null;
+            }
+
+            function exitSelfReview(opts = {}) {
+                if (!selfReview) return;
+                if (!selfReview.completed) {
+                    // Don't ask again for this game; the summary's button picks it back up
+                    selfReview.skipped = true;
+                    if (selfReview.side) srSave();
+                    else SelfReview.save(selfReview.key, { skipped: true });
+                }
+                closeSelfReviewPanel();
+                clearArrows();
+                srSyncOpenButtons();
+                setTimeout(() => {
+                    if (board && board.resize) board.resize();
+                    updateSvgDimensions();
+                    if (typeof opts.goTo === 'number' && opts.goTo >= 0) {
+                        goToMove(opts.goTo);
+                    } else {
+                        goToFirstMove();
+                        openReviewSummary();
+                    }
+                }, 60);
+            }
+
+            function srSyncOpenButtons() {
+                const saved = (typeof SelfReview !== 'undefined' && moves.length) ? SelfReview.load(srGameKey()) : null;
+                const label = saved && saved.completed ? 'Your self review' : (saved && saved.side ? 'Continue self review' : 'Review it yourself');
+                document.querySelectorAll('#ccSelfReview .sr-open-label').forEach(el => { el.textContent = label; });
+                document.querySelectorAll('#btnMovesSelfReview .sr-open-label').forEach(el => {
+                    el.textContent = saved && saved.completed ? 'Your review' : 'Self review';
+                });
+                const chip = document.getElementById('btnMovesSelfReview');
+                if (chip) chip.classList.toggle('d-none', moves.length < 4);
+                const footerBtn = document.getElementById('ccSelfReview');
+                if (footerBtn) footerBtn.classList.toggle('d-none', moves.length < 4);
+            }
+
+            function openSelfReviewFromUi() {
+                if (moves.length < 4 || typeof SelfReview === 'undefined') return;
+                const saved = SelfReview.load(srGameKey());
+                if (saved && saved.skipped && !saved.completed) {
+                    saved.skipped = false;
+                    SelfReview.save(srGameKey(), saved);
+                }
+                startSelfReview({ reveal: true });
+            }
+
+            // ---- Board ----
+            function srStepFen(step) {
+                if (!selfReview || !step) return 'start';
+                if (step.type === 'moment') return selfReview.fens[step.index];
+                const range = srPhaseRange(step.phase);
+                if (step.type === 'phase' && range) return selfReview.fens[range.start] || 'start';
+                if (step.type === 'checkpoint' && range) return selfReview.fens[range.end + 1] || selfReview.finalFen;
+                return selfReview.finalFen || 'start';
+            }
+
+            // Index of the last move already on the board for this step (-1 = start position)
+            function srStepLastMoveIndex(step) {
+                if (!selfReview || !step) return -1;
+                if (step.type === 'moment') return step.index - 1;
+                const range = srPhaseRange(step.phase);
+                if (step.type === 'phase' && range) return range.start - 1;
+                if (step.type === 'checkpoint' && range) return range.end;
+                return moves.length - 1;
+            }
+
+            function srShowBoard() {
+                if (!isSelfReviewActive()) return;
+                const step = srCurrentStep();
+                const fen = step ? srStepFen(step) : 'start';
+                board.position(fen === 'start' ? 'start' : fen, false);
+                updateMaterialDifference(fen);
+                updateTurnIndicators(srStepLastMoveIndex(step));
+                clearSquareAnnotations();
+                clearKingCheckmateBadges();
+                srDrawBoardMarks();
+            }
+
+            function srDrawBoardMarks() {
+                if (!isSelfReviewActive()) return;
+                clearArrows();
+                const step = srCurrentStep();
+                if (!step) return;
+                const last = srStepLastMoveIndex(step);
+                if (last >= 0 && moveHistory[last]) updateBoardSquareHighlights(moveHistory[last].from, moveHistory[last].to);
+                if (step.type !== 'moment') return;
+                const played = moveHistory[step.index];
+                if (played) drawArrow(played.from, played.to, 'current');
+                const a = selfReview.answers.moments[step.index];
+                if (a && a.candidateFrom && a.candidateTo) drawArrow(a.candidateFrom, a.candidateTo, 'candidate');
+            }
+
+            function handleSelfReviewDragStart(source, piece) {
+                const step = srCurrentStep();
+                if (!step || step.type !== 'moment') return false;
+                const fen = selfReview.fens[step.index];
+                return Boolean(fen && piece && piece.charAt(0) === fen.split(' ')[1]);
+            }
+
+            function handleSelfReviewDrop(source, target) {
+                const step = srCurrentStep();
+                if (!step || step.type !== 'moment' || source === target || target === 'offboard') return 'snapback';
+                let m = null;
+                try { m = new Chess(selfReview.fens[step.index]).move({ from: source, to: target, promotion: 'q' }); } catch (e) {}
+                if (!m) return 'snapback';
+                const a = srMomentAnswer(step.index);
+                a.candidate = m.san;
+                a.candidateFrom = m.from;
+                a.candidateTo = m.to;
+                srSave();
+                setTimeout(() => { renderSelfReview(); srDrawBoardMarks(); }, 0);
+                return 'snapback';
+            }
+
+            // ---- Answers ----
+            function srMomentAnswer(index) {
+                const all = selfReview.answers.moments;
+                if (!all[index]) all[index] = {};
+                return all[index];
+            }
+
+            function srPhaseAnswer(phase) {
+                const all = selfReview.answers.phases;
+                if (!all[phase]) all[phase] = {};
+                return all[phase];
+            }
+
+            function srChipsHtml(choices, selected, field) {
+                return `<div class="sr-chips" role="group">${choices.map(c => `
+                    <button type="button" class="sr-chip${selected === c.key ? ' is-selected' : ''}" data-sr-field="${field}" data-sr-value="${c.key}" aria-pressed="${selected === c.key}">${escapeHtml(c.label)}</button>`).join('')}</div>`;
+            }
+
+            // ---- Rendering ----
+            function renderSelfReview() {
+                const body = document.getElementById('srBody');
+                const bar = document.getElementById('srPhaseBar');
+                const footer = document.getElementById('srFooter');
+                const back = document.getElementById('srBack');
+                const next = document.getElementById('srNext');
+                if (!body || !selfReview) return;
+
+                if (!selfReview.side) {
+                    bar.innerHTML = '';
+                    footer.hidden = true;
+                    body.innerHTML = srIntroHtml();
+                    return;
+                }
+
+                const step = srCurrentStep();
+                bar.innerHTML = srPhaseBarHtml(step);
+                footer.hidden = false;
+                back.disabled = selfReview.step === 0;
+                const isReveal = step && step.type === 'reveal';
+                back.classList.toggle('d-none', isReveal);
+                next.innerHTML = isReveal
+                    ? 'Open engine analysis <i class="bi bi-arrow-right"></i>'
+                    : (selfReview.steps[selfReview.step + 1] && selfReview.steps[selfReview.step + 1].type === 'reveal'
+                        ? 'Compare with the engine <i class="bi bi-arrow-right"></i>'
+                        : 'Next <i class="bi bi-chevron-right"></i>');
+
+                if (!step) body.innerHTML = '';
+                else if (step.type === 'phase') body.innerHTML = srPhaseHtml(step);
+                else if (step.type === 'moment') body.innerHTML = srMomentHtml(step);
+                else if (step.type === 'checkpoint') body.innerHTML = srCheckpointHtml(step);
+                else body.innerHTML = srRevealHtml();
+                body.scrollTop = 0;
+                if (isReveal) srEvaluateCandidates();
+            }
+
+            function srPhaseBarHtml(step) {
+                if (!step || !selfReview.plan) return '';
+                const order = selfReview.plan.phases.map(p => p.phase);
+                const current = step.type === 'reveal' ? order.length : order.indexOf(step.phase);
+                const total = selfReview.steps.length - 1;
+                const pills = selfReview.plan.phases.map((p, i) => {
+                    const cls = i < current ? 'is-done' : (i === current ? 'is-current' : '');
+                    return `<span class="sr-phase-pill ${cls}">${escapeHtml(p.label)}</span>`;
+                }).join('');
+                const doneCls = step.type === 'reveal' ? 'is-current' : '';
+                return `${pills}<span class="sr-phase-pill ${doneCls}" title="Step ${Math.min(selfReview.step + 1, total)} of ${total}">Compare</span>`;
+            }
+
+            function srIntroHtml() {
+                const info = currentGameInfo || {};
+                let me = '';
+                try { me = localStorage.getItem(SR_ME_KEY) || ''; } catch (e) {}
+                const sideBtn = (side) => {
+                    const name = srPlayerName(side);
+                    const suggested = me && name === me ? ' is-suggested' : '';
+                    return `<button type="button" class="sr-side-btn${suggested}" data-sr-side="${side}">
+                        <span class="sr-side-swatch is-${side}" aria-hidden="true"></span>
+                        I played ${side === 'black' ? 'Black' : 'White'}
+                        <small>${escapeHtml(name)}${(side === 'black' ? info.black_elo : info.white_elo) ? ` (${escapeHtml(String(side === 'black' ? info.black_elo : info.white_elo))})` : ''}</small>
+                    </button>`;
+                };
+                return `
+                    <div class="sr-kicker">Before the engine</div>
+                    <h3 class="sr-heading">Review the game yourself first</h3>
+                    <p class="sr-text">The engine has found the moments where your game could turn. Strong players look at those moments on their own first. The engine's verdict is easy to accept and hard to learn from.</p>
+                    <ol class="sr-steps-list">
+                        <li>For each phase (opening, middlegame, endgame), say what your plan was.</li>
+                        <li>At each critical moment, rate the position and your move, and try to find a better one. Nothing is revealed yet.</li>
+                        <li>Then compare your answers with the engine.</li>
+                    </ol>
+                    <div class="sr-question">Which side did you play?</div>
+                    <div class="sr-side-btns">${sideBtn('white')}${sideBtn('black')}</div>
+                    <label class="sr-check"><input type="checkbox" id="srSkipPref" ${srReadPref() === 'skip' ? 'checked' : ''}> Next time, go straight to the engine analysis</label>`;
+            }
+
+            function srPhaseHtml(step) {
+                const range = srPhaseRange(step.phase);
+                const prompt = SR_PHASE_PROMPTS[step.phase];
+                const a = selfReview.answers.phases[step.phase] || {};
+                const count = range ? range.moments.length : 0;
+                const first = range ? moves[range.start] : null;
+                const last = range ? moves[range.end] : null;
+                const span = first && last ? `Moves ${first.move_number}–${last.move_number}` : '';
+                const lead = count === 0
+                    ? 'The engine found no critical decisions for you here. Note your plan, then move on.'
+                    : `We'll stop at ${count === 1 ? 'one position' : `${count} positions`} where your decision mattered. Some went well, some may not have. Nothing is revealed yet.`;
+                return `
+                    <div class="sr-kicker">${escapeHtml(range ? range.label : '')}${span ? ` · ${span}` : ''}</div>
+                    <h3 class="sr-heading">${escapeHtml(range ? range.label : '')}</h3>
+                    <p class="sr-text">${lead}</p>
+                    <div class="sr-question">${escapeHtml(prompt.ask)}</div>
+                    <textarea class="sr-note" data-sr-note="phase" rows="3" placeholder="${escapeHtml(prompt.placeholder)}">${escapeHtml(a.plan || '')}</textarea>`;
+            }
+
+            function srMomentHtml(step) {
+                const m = moves[step.index];
+                const range = srPhaseRange(step.phase);
+                const pos = range ? range.moments.indexOf(step.index) + 1 : 0;
+                const a = selfReview.answers.moments[step.index] || {};
+                const prev = moves[step.index - 1];
+                const color = m.is_white ? 'White' : 'Black';
+                const candidate = a.candidate
+                    ? `<div class="sr-candidate"><i class="bi bi-arrow-up-right"></i> Your idea: <b>${formatSanWithFigurines(a.candidate, m.is_white)}</b><button type="button" class="sr-link-btn" data-sr-clear-candidate>Clear</button></div>`
+                    : `<div class="sr-candidate"><i class="bi bi-hand-index"></i> Drag a piece on the board to suggest a move. You can skip this.</div>`;
+                const hint = a.rating ? `<span class="sr-muted"> (${escapeHtml(SR_MOVE_HINTS[a.rating] || '')})</span>` : '';
+                return `
+                    <div class="sr-kicker">${escapeHtml(range ? range.label : '')} · Moment ${pos} of ${range ? range.moments.length : 0}</div>
+                    <h3 class="sr-heading">Move ${m.move_number}: ${color} to play</h3>
+                    <p class="sr-text">${prev ? `Your opponent just played <b>${srMoveLabel(prev)}</b>. ` : ''}You played <b>${formatSanWithFigurines((m.move || '').replace(/[?!]+$/, ''), m.is_white)}</b> (blue arrow).</p>
+                    <div class="sr-question">How did you stand here?</div>
+                    ${srChipsHtml(SelfReview.EVAL_CHOICES.slice().reverse(), a.eval, 'eval')}
+                    <div class="sr-question">How good was ${formatSanWithFigurines((m.move || '').replace(/[?!]+$/, ''), m.is_white)}?${hint}</div>
+                    ${srChipsHtml(SelfReview.MOVE_CHOICES, a.rating, 'rating')}
+                    <div class="sr-question">Do you see a better move?</div>
+                    ${candidate}
+                    <div class="sr-question">What were you thinking?</div>
+                    <textarea class="sr-note" data-sr-note="moment" rows="3" placeholder="The lines you calculated, what you were worried about, how much time you had…">${escapeHtml(a.note || '')}</textarea>`;
+            }
+
+            function srCheckpointHtml(step) {
+                const range = srPhaseRange(step.phase);
+                const prompt = SR_PHASE_PROMPTS[step.phase];
+                const a = selfReview.answers.phases[step.phase] || {};
+                return `
+                    <div class="sr-kicker">${escapeHtml(range ? range.label : '')} · Wrap-up</div>
+                    <h3 class="sr-heading">${escapeHtml(prompt.end)}</h3>
+                    <p class="sr-text">This is the position after the last move of the ${escapeHtml((range ? range.label : '').toLowerCase())}.</p>
+                    ${srChipsHtml(SelfReview.EVAL_CHOICES.slice().reverse(), a.eval, 'phase-eval')}
+                    <div class="sr-question">Anything else you noticed?</div>
+                    <textarea class="sr-note" data-sr-note="phase-end" rows="2" placeholder="Time trouble, a moment you felt lost, an idea you rejected…">${escapeHtml(a.note || '')}</textarea>`;
+            }
+
+            function srEvalLabel(key) {
+                const c = SelfReview.EVAL_CHOICES.find(x => x.key === key);
+                return c ? c.label : '—';
+            }
+
+            function srReport() {
+                return SelfReview.compare(moves, selfReview.plan, selfReview.answers, {
+                    fens: selfReview.fens,
+                    phaseOf: srPhaseOf,
+                    candidateWps: selfReview.candidateWps
+                });
+            }
+
+            function srRevealHtml() {
+                const report = srReport();
+                const t = report.totals;
+                const stat = (value, label) => `<div class="sr-stat"><b>${value}</b><span>${label}</span></div>`;
+                const stats = [
+                    t.errorsTotal ? stat(`${t.errorsSpotted}/${t.errorsTotal}`, 'mistakes you spotted') : stat('0', 'mistakes among these moments'),
+                    stat(t.evalsAnswered ? `${t.evalsMatched}/${t.evalsAnswered}` : '—', 'positions judged about right'),
+                    stat(t.candidatesTried ? `${t.candidatesGood}/${t.candidatesTried}` : '—', 'better moves you found')
+                ].join('');
+
+                const phaseBlocks = report.phases.map(p => {
+                    const first = moves[p.start];
+                    const last = moves[p.end];
+                    const rows = p.rows.map(srRevealRowHtml).join('');
+                    const plan = (selfReview.answers.phases[p.phase] || {}).plan;
+                    const end = p.engineEval ? `
+                        <table class="sr-compare"><thead><tr><th>End of ${escapeHtml(p.label.toLowerCase())}</th><th>You</th><th>Engine</th></tr></thead><tbody>
+                            <tr><td>Position</td><td class="sr-you ${p.evalVerdict ? `v-${p.evalVerdict}` : ''}">${srEvalLabel(p.userEval)}</td><td>${srEvalLabel(p.engineEval)}${p.engineEvaluation ? ` <span class="sr-muted">(${escapeHtml(p.engineEvaluation)})</span>` : ''}</td></tr>
+                        </tbody></table>` : '';
+                    return `
+                        <section class="sr-phase-block">
+                            <div class="sr-phase-head">${escapeHtml(p.label)}${first && last ? `<span>Moves ${first.move_number}–${last.move_number}</span>` : ''}</div>
+                            ${plan ? `<div class="sr-row-note"><b>Your plan:</b> ${escapeHtml(plan)}</div>` : ''}
+                            ${rows}
+                            <div class="sr-row">${end}${p.note ? `<div class="sr-row-note">${escapeHtml(p.note)}</div>` : ''}</div>
+                        </section>`;
+                }).join('');
+
+                return `
+                    <div class="sr-kicker">Your review vs the engine</div>
+                    <h3 class="sr-heading">How did your review compare?</h3>
+                    <div class="sr-stats">${stats}</div>
+                    <div class="sr-question">Takeaways</div>
+                    <ul class="sr-takeaways">${report.takeaways.map(x => `<li>${escapeHtml(x)}</li>`).join('')}</ul>
+                    <p class="sr-text sr-muted">Green: you matched the engine. Yellow: one step off. Red: a big gap. Open a moment to see the engine's explanation.</p>
+                    ${phaseBlocks}`;
+            }
+
+            function srRevealRowHtml(r) {
+                const m = r.move;
+                const key = ccQualityKey(m);
+                const userMove = r.rating ? (SelfReview.MOVE_CHOICES.find(c => c.key === r.rating) || {}).label : '—';
+                let candidateCell = '—';
+                let candidateCls = '';
+                if (r.candidate) {
+                    const verdict = r.candidateVerdict;
+                    candidateCell = `${formatSanWithFigurines(r.candidate, m.is_white)}${verdict ? ` <span class="sr-muted">(${SR_CANDIDATE_LABELS[verdict]})</span>` : ' <span class="sr-muted">(checking…)</span>'}`;
+                    candidateCls = verdict === 'best' || verdict === 'good' ? 'v-match' : (verdict === 'ok' ? 'v-close' : (verdict === 'worse' ? 'v-off' : ''));
+                }
+                const best = r.bestMove ? `${formatSanWithFigurines(r.bestMove, m.is_white)}${r.bestEvaluation ? ` <span class="sr-muted">(${escapeHtml(r.bestEvaluation)})</span>` : ''}` : '—';
+                return `
+                    <div class="sr-row">
+                        <div class="sr-row-head">
+                            <span class="sr-row-move">${srMoveLabel(m)}</span>
+                            <span class="sr-row-engine">${ccQualityIconHtml(m)}${key ? CC_QUALITY_LABELS[key] : ''}</span>
+                            <button type="button" class="sr-link-btn" data-sr-open="${r.index}">Open <i class="bi bi-arrow-right"></i></button>
+                        </div>
+                        <table class="sr-compare"><thead><tr><th></th><th>You</th><th>Engine</th></tr></thead><tbody>
+                            <tr><td>Your move</td><td class="sr-you ${r.moveVerdict ? `v-${r.moveVerdict}` : ''}">${escapeHtml(userMove)}</td><td>${key ? CC_QUALITY_LABELS[key] : '—'}</td></tr>
+                            <tr><td>Position</td><td class="sr-you ${r.evalVerdict ? `v-${r.evalVerdict}` : ''}">${srEvalLabel(r.userEval)}</td><td>${srEvalLabel(r.engineEval)}</td></tr>
+                            <tr><td>Best move</td><td class="sr-you ${candidateCls}">${candidateCell}</td><td>${best}</td></tr>
+                        </tbody></table>
+                        ${r.note ? `<div class="sr-row-note">${escapeHtml(r.note)}</div>` : ''}
+                    </div>`;
+            }
+
+            // Suggested moves the engine did not already score get a quick depth-14 check
+            async function srEvaluateCandidates() {
+                if (!selfReview || selfReview.evaluating) return;
+                const pending = srReport().rows.filter(r => r.candidate && !r.candidateVerdict);
+                if (pending.length === 0) return;
+                selfReview.evaluating = true;
+                const review = selfReview;
+                try {
+                    for (const r of pending) {
+                        const probe = new Chess(review.fens[r.index]);
+                        const moved = probe.move(r.candidate);
+                        if (!moved) continue;
+                        let wp = null;
+                        if (probe.in_checkmate()) wp = 1;
+                        else if (probe.in_draw() || probe.in_stalemate()) wp = 0.5;
+                        else {
+                            const fen = probe.fen();
+                            await evalExploreFen(fen);
+                            const ev = exploreEvalCache.get(fen);
+                            if (ev && typeof ChessEvaluator !== 'undefined') {
+                                // The engine scores the reply side; flip back to the player
+                                const cp = -ChessEvaluator.scoreToCp({ cp: ev.cp, mate: ev.mate });
+                                wp = ChessEvaluator.cpToWinProb(cp);
+                            }
+                        }
+                        if (wp !== null && selfReview === review) review.candidateWps[r.index] = wp;
+                    }
+                } catch (e) {
+                    // Engine unavailable: those suggestions stay unscored
+                } finally {
+                    review.evaluating = false;
+                }
+                if (selfReview === review && isSelfReviewActive()) {
+                    srSave();
+                    const step = srCurrentStep();
+                    if (step && step.type === 'reveal') {
+                        const body = document.getElementById('srBody');
+                        const scroll = body ? body.scrollTop : 0;
+                        body.innerHTML = srRevealHtml();
+                        body.scrollTop = scroll;
+                    }
+                }
+            }
+
+            function srGoToStep(stepIndex) {
+                if (!selfReview) return;
+                selfReview.step = Math.max(0, Math.min(stepIndex, selfReview.steps.length - 1));
+                const step = srCurrentStep();
+                if (step && step.type === 'reveal') selfReview.completed = true;
+                srSave();
+                renderSelfReview();
+                srShowBoard();
+                srSyncOpenButtons();
+            }
+
+            // "Your review" block under the engine's explanation of a move
+            function srMoveNoteHtml(index) {
+                if (typeof SelfReview === 'undefined' || isSelfReviewActive()) return '';
+                const saved = SelfReview.load(srGameKey());
+                const a = saved && saved.answers && saved.answers.moments && saved.answers.moments[index];
+                if (!a || !(a.rating || a.eval || a.candidate || a.note)) return '';
+                const m = moves[index];
+                const parts = [];
+                if (a.rating) parts.push(`you rated it <b>${escapeHtml((SelfReview.MOVE_CHOICES.find(c => c.key === a.rating) || {}).label || '')}</b>`);
+                if (a.eval) parts.push(`you felt <b>${escapeHtml(srEvalLabel(a.eval).toLowerCase())}</b>`);
+                if (a.candidate) parts.push(`you suggested <b>${formatSanWithFigurines(a.candidate, m && m.is_white)}</b>`);
+                const line = parts.length ? parts.join(', ') + '.' : '';
+                return `<div class="sr-move-note">
+                    <div class="sr-move-note-title"><i class="bi bi-pencil-square me-1"></i>Your review</div>
+                    ${line ? line.charAt(0).toUpperCase() + line.slice(1) : ''}
+                    ${a.note ? `<div class="sr-move-note-text">${escapeHtml(a.note)}</div>` : ''}
+                </div>`;
+            }
+
+            (function initSelfReviewUi() {
+                const panel = document.getElementById('selfReviewPanel');
+                if (!panel) return;
+
+                panel.addEventListener('click', (e) => {
+                    if (!selfReview) return;
+                    const sideBtn = e.target.closest('[data-sr-side]');
+                    if (sideBtn) {
+                        srSetSide(sideBtn.dataset.srSide);
+                        srGoToStep(0);
+                        return;
+                    }
+                    const chip = e.target.closest('[data-sr-field]');
+                    if (chip) {
+                        const step = srCurrentStep();
+                        if (!step) return;
+                        const field = chip.dataset.srField;
+                        const value = chip.dataset.srValue;
+                        const target = field === 'phase-eval' ? srPhaseAnswer(step.phase) : srMomentAnswer(step.index);
+                        const prop = field === 'phase-eval' ? 'eval' : field;
+                        target[prop] = target[prop] === value ? null : value;
+                        srSave();
+                        const body = document.getElementById('srBody');
+                        const scroll = body.scrollTop;
+                        renderSelfReview();
+                        body.scrollTop = scroll;
+                        return;
+                    }
+                    if (e.target.closest('[data-sr-clear-candidate]')) {
+                        const step = srCurrentStep();
+                        if (!step || step.type !== 'moment') return;
+                        const a = srMomentAnswer(step.index);
+                        delete a.candidate;
+                        delete a.candidateFrom;
+                        delete a.candidateTo;
+                        delete selfReview.candidateWps[step.index];
+                        srSave();
+                        renderSelfReview();
+                        srDrawBoardMarks();
+                        return;
+                    }
+                    const open = e.target.closest('[data-sr-open]');
+                    if (open) {
+                        exitSelfReview({ goTo: parseInt(open.dataset.srOpen, 10) });
+                    }
+                });
+
+                panel.addEventListener('change', (e) => {
+                    if (e.target && e.target.id === 'srSkipPref') srWritePref(e.target.checked ? 'skip' : 'ask');
+                });
+
+                panel.addEventListener('input', (e) => {
+                    const kind = e.target && e.target.dataset ? e.target.dataset.srNote : null;
+                    if (!kind || !selfReview) return;
+                    const step = srCurrentStep();
+                    if (!step) return;
+                    if (kind === 'moment') srMomentAnswer(step.index).note = e.target.value;
+                    else if (kind === 'phase') srPhaseAnswer(step.phase).plan = e.target.value;
+                    else srPhaseAnswer(step.phase).note = e.target.value;
+                    clearTimeout(srNoteTimer);
+                    srNoteTimer = setTimeout(srSave, 300);
+                });
+
+                const back = document.getElementById('srBack');
+                if (back) back.addEventListener('click', () => { if (selfReview) srGoToStep(selfReview.step - 1); });
+                const next = document.getElementById('srNext');
+                if (next) next.addEventListener('click', () => {
+                    if (!selfReview) return;
+                    const step = srCurrentStep();
+                    if (step && step.type === 'reveal') exitSelfReview();
+                    else srGoToStep(selfReview.step + 1);
+                });
+                const skip = document.getElementById('srSkipToEngine');
+                if (skip) skip.addEventListener('click', () => exitSelfReview());
+
+                const footerBtn = document.getElementById('ccSelfReview');
+                if (footerBtn) footerBtn.addEventListener('click', openSelfReviewFromUi);
+                const chip = document.getElementById('btnMovesSelfReview');
+                if (chip) chip.addEventListener('click', openSelfReviewFromUi);
+            })();
+
             // ===== CHESS.COM-STYLE UI: themes, sidebar, coach line, Game Review =====
             const CC_QUALITY_ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder'];
             const CC_QUALITY_LABELS = {
@@ -11783,6 +12793,7 @@
                 const list = movesList || moves;
                 if (!body) return;
                 if (!list || list.length === 0) {
+                    srSyncOpenButtons();
                     body.innerHTML = '<div class="cc-review-empty">Import and analyze a game to see its review.</div>';
                     if (strip) { strip.innerHTML = ''; strip.classList.add('d-none'); }
                     return;
@@ -11845,6 +12856,7 @@
                     </tbody></table>`;
 
                 ccBindGraph(document.getElementById('ccEvalGraph'), (i) => { closeReviewSummary(); goToMove(i); });
+                srSyncOpenButtons();
 
                 if (strip) {
                     strip.innerHTML = ccEvalGraphSvg(list, 'ccEvalGraphMini', 56);
@@ -11917,7 +12929,8 @@
                                 displayAnalysis(moves);
                                 closeReviewSummary();
                             }
-                            if (currentAppMode === 'analysis' && currentMoveIndex >= 0) goToMove(currentMoveIndex);
+                            if (isSelfReviewActive()) srDrawBoardMarks();
+                            else if (currentAppMode === 'analysis' && currentMoveIndex >= 0) goToMove(currentMoveIndex);
                         }, 50);
                     });
                 });
@@ -11983,6 +12996,8 @@
             window.getCurrentAppMode = () => currentAppMode;
             window.renderReviewSummary = renderReviewSummary;
             window.openReviewSummary = openReviewSummary;
+            window.startSelfReview = startSelfReview;
+            window.getSelfReview = () => selfReview;
             window.addSquareAnnotation = addSquareAnnotation;
             window.board = board;
 

@@ -482,6 +482,143 @@ console.log("Testing index.html banner markup & styling integrity...");
 const fs = require('fs');
 const indexHtml = fs.readFileSync(require('path').join(__dirname, 'index.html'), 'utf8');
 
+// Self Review: review the critical moments yourself before the engine
+console.log("Testing SelfReview...");
+{
+    const SelfReview = require('./js/self-review.js');
+
+    assert.strictEqual(SelfReview.parseEval('+1.20'), 120);
+    assert.strictEqual(SelfReview.parseEval('-0.35'), -35);
+    assert.strictEqual(SelfReview.parseEval('M3'), 9970);
+    assert.strictEqual(SelfReview.parseEval('-M2'), -9980);
+    assert.strictEqual(SelfReview.parseEval('#1'), 9990);
+    assert.strictEqual(SelfReview.parseEval(null), null);
+    assert.strictEqual(SelfReview.parseEval('abc'), null);
+
+    assert.strictEqual(SelfReview.evalKeyFromWp(0.95), 'winning');
+    assert.strictEqual(SelfReview.evalKeyFromWp(0.65), 'better');
+    assert.strictEqual(SelfReview.evalKeyFromWp(0.5), 'equal');
+    assert.strictEqual(SelfReview.evalKeyFromWp(0.2), 'worse');
+    assert.strictEqual(SelfReview.evalKeyFromWp(0.05), 'losing');
+
+    assert.strictEqual(SelfReview.engineMoveLevel({ detailed_quality: 'best' }), 0);
+    assert.strictEqual(SelfReview.engineMoveLevel({ detailed_quality: 'excellent' }), 1);
+    assert.strictEqual(SelfReview.engineMoveLevel({ detailed_quality: 'inaccuracy' }), 2);
+    assert.strictEqual(SelfReview.engineMoveLevel({ detailed_quality: 'blunder' }), 3);
+    assert.strictEqual(SelfReview.engineMoveLevel({ quality: 'missed win' }), 3);
+
+    // A 24-ply game: plies 0-7 opening, 8-17 middlegame, 18-23 endgame
+    const phaseOf = (fen) => fen;
+    const fens = Array.from({ length: 24 }, (_, i) => i < 8 ? 'opening' : (i < 18 ? 'middlegame' : 'endgame'));
+    const mv = (i, dq, extra) => Object.assign({
+        move_number: Math.floor(i / 2) + 1,
+        ply: i + 1,
+        move: 'm' + i,
+        is_white: i % 2 === 0,
+        quality: ['blunder', 'mistake', 'inaccuracy', 'missed win'].includes(dq) ? dq : 'good move',
+        detailed_quality: dq,
+        win_probability: 0.5,
+        win_prob_loss: 0,
+        evaluation: '+0.20',
+        analysis: { best_move: 'b' + i, best_evaluation: '+0.20', why: null }
+    }, extra || {});
+    const game = Array.from({ length: 24 }, (_, i) => mv(i, i < 4 ? 'book' : 'excellent'));
+    game[6] = mv(6, 'mistake', { win_prob_loss: 0.12 });                 // White, opening
+    game[11] = mv(11, 'blunder', { win_prob_loss: 0.4 });                // Black errs...
+    game[12] = mv(12, 'best', { analysis: { best_move: 'm12', best_evaluation: '+3.00' } }); // ...White punishes
+    game[14] = mv(14, 'blunder', { win_prob_loss: 0.35, analysis: { best_move: 'Qd5', best_evaluation: '+2.50', why: { alternatives: [{ san: 'Rd1', wp: 0.72 }] } } });
+    game[20] = mv(20, 'great', {});
+    game[2] = mv(2, 'book', { win_prob_loss: 0.5 });                      // book moves never count
+
+    const plan = SelfReview.buildPlan(game, { side: 'white', fens, phaseOf });
+    assert.strictEqual(plan.side, 'white');
+    assert.deepStrictEqual(plan.phases.map(p => p.phase), ['opening', 'middlegame', 'endgame']);
+    assert.deepStrictEqual(plan.moments, [6, 12, 14, 20], 'White moments: the mistake, the punish, the blunder, the great move');
+    assert.ok(plan.moments.every(i => game[i].is_white), 'Only the chosen side\'s moves are reviewed');
+    assert.ok(!plan.moments.includes(2), 'Book moves are never critical moments');
+    assert.deepStrictEqual(plan.phases[1].moments, [12, 14]);
+    assert.deepStrictEqual(SelfReview.buildPlan(game, { side: 'white', fens, phaseOf }), plan, 'Plan must be deterministic');
+
+    const blackPlan = SelfReview.buildPlan(game, { side: 'black', fens, phaseOf });
+    assert.ok(blackPlan.moments.includes(11) && blackPlan.moments.every(i => !game[i].is_white));
+
+    // Forced moves (one legal reply) are skipped
+    const forced = fens.map((_, i) => i === 14 ? 1 : 20);
+    assert.ok(!SelfReview.buildPlan(game, { side: 'white', fens, phaseOf, legalMoveCounts: forced }).moments.includes(14));
+
+    // Per-phase cap
+    const busy = Array.from({ length: 24 }, (_, i) => mv(i, 'blunder', { win_prob_loss: 0.3 }));
+    const busyPlan = SelfReview.buildPlan(busy, { side: 'white', fens, phaseOf });
+    busyPlan.phases.forEach(p => assert.ok(p.moments.length <= 3, 'At most 3 moments per phase'));
+    assert.ok(busyPlan.moments.length <= 8, 'At most 8 moments per game');
+
+    // Phases never go backwards (a promotion can push material back up)
+    const wobbly = ['opening', 'middlegame', 'opening', 'endgame', 'middlegame'];
+    assert.deepStrictEqual(SelfReview.phaseSequence(wobbly.map(() => ({})), wobbly, phaseOf), ['opening', 'middlegame', 'middlegame', 'endgame', 'endgame']);
+
+    const steps = SelfReview.planSteps(plan);
+    assert.strictEqual(steps[0].type, 'phase');
+    assert.strictEqual(steps[steps.length - 1].type, 'reveal');
+    assert.strictEqual(steps.filter(s => s.type === 'moment').length, plan.moments.length);
+    assert.strictEqual(steps.filter(s => s.type === 'checkpoint').length, 3);
+
+    // Candidate moves vs the engine
+    assert.strictEqual(SelfReview.candidateVerdict(game[14], 'Qd5+'), 'best');
+    assert.strictEqual(SelfReview.candidateVerdict(game[14], 'm14'), 'played');
+    assert.strictEqual(SelfReview.candidateVerdict(game[14], 'Rd1'), 'ok', 'Alternative within 0.12 WP of the best is playable');
+    assert.strictEqual(SelfReview.candidateVerdict(game[14], 'Nf3'), null, 'Unknown moves need an engine check');
+    assert.strictEqual(SelfReview.candidateVerdict(game[14], 'Nf3', 0.2), 'worse');
+
+    // Compare the player's answers with the engine
+    const answers = {
+        moments: {
+            6: { rating: 'dubious', eval: 'equal' },
+            12: { rating: 'strong', eval: 'winning', candidate: 'm12', note: 'Saw it!' },
+            14: { rating: 'fine', eval: 'winning', candidate: 'Qd5' }
+        },
+        phases: { opening: { eval: 'winning' }, middlegame: { eval: 'better' } }
+    };
+    const report = SelfReview.compare(game, plan, answers, { fens, phaseOf });
+    const row = (i) => report.rows.find(r => r.index === i);
+    assert.strictEqual(row(6).moveVerdict, 'close', 'Dubious vs mistake is one step off');
+    assert.strictEqual(row(14).moveVerdict, 'off', 'Fine vs blunder is a big gap');
+    assert.strictEqual(row(14).candidateVerdict, 'best');
+    assert.strictEqual(row(12).note, 'Saw it!');
+    assert.strictEqual(report.totals.errorsTotal, 2);
+    assert.strictEqual(report.totals.errorsSpotted, 1, 'Only the mistake rated dubious counts as spotted');
+    assert.strictEqual(report.totals.candidatesTried, 1, 'Suggesting the played move is not a new idea');
+    assert.strictEqual(report.totals.candidatesGood, 1);
+    assert.strictEqual(report.totals.evalBias, 'optimistic', 'Rating positions above the engine is flagged');
+    assert.ok(report.takeaways.length >= 1 && report.takeaways.length <= 3);
+    assert.ok(report.takeaways[0].includes('8. m14'), 'First takeaway names the unflagged error');
+    assert.deepStrictEqual(SelfReview.compare(game, plan, answers, { fens, phaseOf }).takeaways, report.takeaways, 'Takeaways are deterministic');
+    const opening = report.phases.find(p => p.phase === 'opening');
+    assert.strictEqual(opening.engineEval, 'equal');
+    assert.strictEqual(opening.evalVerdict, 'off');
+
+    // Storage: keyed by the move list, most recent games kept
+    const mem = { data: {}, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; } };
+    const key = SelfReview.gameKey(game);
+    assert.strictEqual(key, SelfReview.gameKey(game.map(m => Object.assign({}, m, { move: m.move + '?' }))), 'Annotations do not change the key');
+    assert.notStrictEqual(key, SelfReview.gameKey(game.slice(0, 20)));
+    assert.ok(SelfReview.save(key, { side: 'white', answers }, mem, 1));
+    assert.strictEqual(SelfReview.load(key, mem).side, 'white');
+    for (let i = 0; i < 35; i++) SelfReview.save('k' + i, { side: 'black' }, mem, 10 + i);
+    assert.strictEqual(SelfReview.load(key, mem), null, 'Oldest reviews are evicted beyond 30 games');
+    assert.ok(SelfReview.load('k34', mem));
+
+    // index.html wiring
+    assert.ok(indexHtml.includes('<script src="js/self-review.js"></script>'), 'self-review.js must be loaded');
+    assert.ok(indexHtml.includes('id="selfReviewPanel"'), 'Self review panel must exist');
+    assert.ok(indexHtml.includes('id="srSkipToEngine"'), 'Self review must offer a way straight to the engine');
+    assert.ok(indexHtml.includes('id="ccSelfReview"'), 'Game Review summary must link to the self review');
+    assert.ok(indexHtml.includes('body.self-review-active #evalGauge'), 'Eval bar must be hidden during self review');
+    assert.ok(/if \(isSelfReviewActive\(\)\) return;/.test(indexHtml), 'Keyboard navigation must be off during self review');
+    assert.strictEqual((indexHtml.match(/maybeStartSelfReview\(\);/g) || []).length, 3, 'Every analysis load path offers the self review');
+    assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'self-review.js'), 'utf8')), 'Self review must be deterministic');
+}
+console.log("✓ SelfReview passed!");
+
 // Game Review accuracy helpers (chess.com-style UI)
 console.log("Testing Game Review accuracy helpers...");
 {

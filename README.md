@@ -95,6 +95,16 @@ Analyses persist in `localStorage` under `whyblunder_analysis_cache_v1`:
 - **LRU Eviction**: Caps storage at 5 full game analyses. When quota exceptions occur, the cache automatically truncates the oldest 50% of entries.
 - **Lichess URL / ID Resolving**: Directly retrieves cached evaluations for game IDs (e.g., `https://lichess.org/Qa7FJNk2`).
 
+### 5. Self Review Before the Engine (`js/self-review.js`)
+
+Most coaches agree that an engine-only review teaches little. You should first go through the game with your own thinking, and only then compare it with the engine. After analysis, WhyBlunder offers a self review before it shows any verdict:
+
+- **By phase**: The game is split into opening, middlegame and endgame. Each phase asks for your plan, then how you stood when the phase ended.
+- **Critical moments, unlabeled**: The engine picks up to 8 positions for your side (at most 3 per phase). These include your errors, only-moves and chances to punish your opponent, so the list itself gives nothing away. At each one you rate the position and your move, can drag a better move on the board, and note what you were thinking. The eval bar, move list and classifications stay hidden.
+- **Compare**: Your answers are lined up against the engine: mistakes you spotted, positions you judged correctly (and whether you were over- or under-optimistic), and better moves you found. You get up to three takeaways. Your notes then appear under the engine's explanation of each move.
+
+Reviews are saved in `localStorage` under `whyblunder_self_review_v1` (the 30 most recent games). A checkbox lets you skip straight to the engine analysis.
+
 ---
 
 ## Architectural Trade-offs
