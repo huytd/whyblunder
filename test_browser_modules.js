@@ -1725,14 +1725,17 @@ console.log("✓ Coach board flicker fix regressions passed!");
     console.log("✓ Coach Selection State Machine passed!");
     console.log("✓ Coach Move Feedback & Explanatory Arrows passed!");
 
-    // 7. Test King Checkmate & Stalemate Badges (Winner ⭑, Loser ×, Stalemate/Draw ½)
-    console.log("Testing King Checkmate & Stalemate Badges (Winner ⭑, Loser ×, Stalemate/Draw ½)...");
+    // 7. Test King Checkmate & Stalemate Badges (Winner 🏆, Loser #, Stalemate/Draw ½)
+    console.log("Testing King Checkmate & Stalemate Badges (Winner 🏆, Loser #, Stalemate/Draw ½)...");
     assert(indexContent.includes('.king-checkmate-badge'), "index.html must include .king-checkmate-badge CSS");
     assert(indexContent.includes('.king-badge-winner'), "index.html must include .king-badge-winner CSS");
     assert(indexContent.includes('.king-badge-loser'), "index.html must include .king-badge-loser CSS");
     assert(indexContent.includes('.king-badge-stalemate'), "index.html must include .king-badge-stalemate CSS");
     assert(indexContent.includes('.king-badge-icon'), "index.html must include .king-badge-icon CSS");
     assert(indexContent.includes('updateKingCheckmateBadges'), "index.html must define updateKingCheckmateBadges");
+    assert(indexContent.includes('.king-badge-trophy'), "index.html must style the flat trophy icon");
+    assert(indexContent.includes("if (type === 'winner') symbolSpan.innerHTML = KING_BADGE_TROPHY_SVG;"), "Winner badge must render the trophy as an SVG, not an emoji");
+    assert(indexContent.includes("addKingBadge(loserSq, 'loser', '#',"), "Loser badge must show '#'");
     assert(indexContent.includes('clearKingCheckmateBadges'), "index.html must define clearKingCheckmateBadges");
 
     // Unit test logic for updateKingCheckmateBadges with Scholar's Mate
@@ -1784,12 +1787,12 @@ console.log("✓ Coach board flicker fix regressions passed!");
             if (winnerSq) {
                 const file = isFlipped ? 7 - (winnerSq.charCodeAt(0) - 97) : (winnerSq.charCodeAt(0) - 97);
                 const rank = isFlipped ? parseInt(winnerSq.charAt(1)) - 1 : 8 - parseInt(winnerSq.charAt(1));
-                badges.push({ type: 'winner', emoji: '⭑', square: winnerSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
+                badges.push({ type: 'winner', emoji: '🏆', square: winnerSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
             }
             if (loserSq) {
                 const file = isFlipped ? 7 - (loserSq.charCodeAt(0) - 97) : (loserSq.charCodeAt(0) - 97);
                 const rank = isFlipped ? parseInt(loserSq.charAt(1)) - 1 : 8 - parseInt(loserSq.charAt(1));
-                badges.push({ type: 'loser', emoji: '×', square: loserSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
+                badges.push({ type: 'loser', emoji: '#', square: loserSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
             }
         } else if (isResigned) {
             const loserColor = resignedColor;
@@ -1800,12 +1803,12 @@ console.log("✓ Coach board flicker fix regressions passed!");
             if (winnerSq) {
                 const file = isFlipped ? 7 - (winnerSq.charCodeAt(0) - 97) : (winnerSq.charCodeAt(0) - 97);
                 const rank = isFlipped ? parseInt(winnerSq.charAt(1)) - 1 : 8 - parseInt(winnerSq.charAt(1));
-                badges.push({ type: 'winner', emoji: '⭑', square: winnerSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
+                badges.push({ type: 'winner', emoji: '🏆', square: winnerSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
             }
             if (loserSq) {
                 const file = isFlipped ? 7 - (loserSq.charCodeAt(0) - 97) : (loserSq.charCodeAt(0) - 97);
                 const rank = isFlipped ? parseInt(loserSq.charAt(1)) - 1 : 8 - parseInt(loserSq.charAt(1));
-                badges.push({ type: 'loser', emoji: '×', square: loserSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
+                badges.push({ type: 'loser', emoji: '#', square: loserSq, left: `${file * 12.5}%`, top: `${rank * 12.5}%` });
             }
         } else if (isStalemate) {
             if (whiteKingSq) {
@@ -1825,13 +1828,13 @@ console.log("✓ Coach board flicker fix regressions passed!");
     const badgesStandard = simulateKingBadges(mateChess, false);
     assert.strictEqual(badgesStandard.length, 2, "Must produce 2 badges on checkmate");
     assert.strictEqual(badgesStandard[0].type, 'winner');
-    assert.strictEqual(badgesStandard[0].emoji, '⭑');
+    assert.strictEqual(badgesStandard[0].emoji, '🏆');
     assert.strictEqual(badgesStandard[0].square, 'e1'); // White king
     assert.strictEqual(badgesStandard[0].left, '50%'); // file e = index 4 => 4 * 12.5 = 50%
     assert.strictEqual(badgesStandard[0].top, '87.5%'); // rank 1 => 8 - 1 = 7 => 7 * 12.5 = 87.5%
 
     assert.strictEqual(badgesStandard[1].type, 'loser');
-    assert.strictEqual(badgesStandard[1].emoji, '×');
+    assert.strictEqual(badgesStandard[1].emoji, '#');
     assert.strictEqual(badgesStandard[1].square, 'e8'); // Black king
     assert.strictEqual(badgesStandard[1].left, '50%'); // file e = index 4 => 4 * 12.5 = 50%
     assert.strictEqual(badgesStandard[1].top, '0%'); // rank 8 => 8 - 8 = 0 => 0 * 12.5 = 0%
@@ -1861,9 +1864,9 @@ console.log("✓ Coach board flicker fix regressions passed!");
     const whiteResignWinner = whiteResignBadges.find(b => b.type === 'winner');
     const whiteResignLoser = whiteResignBadges.find(b => b.type === 'loser');
     assert(whiteResignWinner && whiteResignWinner.square === 'e8', "Winner badge must be on Black King (e8)");
-    assert.strictEqual(whiteResignWinner.emoji, '⭑');
+    assert.strictEqual(whiteResignWinner.emoji, '🏆');
     assert(whiteResignLoser && whiteResignLoser.square === 'e1', "Loser badge must be on White King (e1)");
-    assert.strictEqual(whiteResignLoser.emoji, '×');
+    assert.strictEqual(whiteResignLoser.emoji, '#');
 
     // Case 2: Black resigns (resignedColor = 'b')
     const blackResignBadges = simulateKingBadges(resignChess, false, { resigned: true, resignedColor: 'b' });
@@ -1890,7 +1893,7 @@ console.log("✓ Coach board flicker fix regressions passed!");
     assert(indexContent.includes('currentAppMode === \'coach\' && typeof coachManager !== \'undefined\' && coachManager && coachManager.isGameOver && coachManager.resigned'), "index.html updateKingCheckmateBadges must scope coachManager resignation to coach mode");
     assert(indexContent.includes('if (clampedIndex === maxIndex && coachManager && coachManager.isGameOver)'), "index.html selectCoachMove must only display king badges on the last move in coach review");
 
-    console.log("✓ King Checkmate & Stalemate Badges (Winner ⭑, Loser ×, Stalemate/Draw ½) passed!");
+    console.log("✓ King Checkmate & Stalemate Badges (Winner 🏆, Loser #, Stalemate/Draw ½) passed!");
 
     // =========================================================================
     // Regression Tests for Coach Play Code Review Fixes (11 Items)

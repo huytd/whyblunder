@@ -1051,7 +1051,7 @@
             background-size: 55%;
         }
 
-        /* King Checkmate Badges (Winner ⭑ & Loser ×) */
+        /* King Checkmate Badges (Winner trophy & Loser #) */
         .king-checkmate-badge {
             position: absolute;
             width: var(--sq, 12.5%);
@@ -1123,14 +1123,16 @@
 
         .king-badge-winner .king-badge-icon,
         .king-badge-loser .king-badge-icon {
-            width: auto;
-            height: auto;
-            padding: 0.3rem 0.75rem;
-            border-radius: 999px;
-            white-space: nowrap;
             color: #ffffff;
-            font-size: 1.125rem;
+            font-size: 1.1875rem;
             font-weight: 700;
+        }
+        /* Flat, single-colour trophy (inline SVG, not the 🏆 emoji) */
+        .king-badge-trophy {
+            display: block;
+            width: 1.375rem;
+            height: 1.375rem;
+            fill: currentColor;
         }
         .king-badge-winner .king-badge-icon {
             background-color: #6a9f3a;
@@ -1158,10 +1160,11 @@
             }
             .king-badge-winner .king-badge-icon,
             .king-badge-loser .king-badge-icon {
-                width: auto;
-                height: auto;
-                padding: 0.2rem 0.55rem;
-                font-size: 0.875rem;
+                font-size: 0.95rem;
+            }
+            .king-badge-trophy {
+                width: 1.125rem;
+                height: 1.125rem;
             }
             .king-badge-stalemate .king-badge-icon,
             .king-badge-draw .king-badge-icon {
@@ -9072,7 +9075,10 @@
                     ? (board.orientation() === 'black') 
                     : false;
 
-                function addKingBadge(sq, type, emoji, titleText = '') {
+                // Winner gets a flat trophy SVG (currentColor) so it never renders as a colour emoji
+                const KING_BADGE_TROPHY_SVG = '<svg class="king-badge-trophy" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>';
+
+                function addKingBadge(sq, type, symbol, titleText = '') {
                     if (!sq) return;
                     const file = isFlipped ? 7 - (sq.charCodeAt(0) - 97) : (sq.charCodeAt(0) - 97);
                     const rank = isFlipped ? parseInt(sq.charAt(1)) - 1 : 8 - parseInt(sq.charAt(1));
@@ -9095,7 +9101,8 @@
 
                     const symbolSpan = document.createElement('span');
                     symbolSpan.className = 'king-badge-symbol';
-                    symbolSpan.textContent = emoji;
+                    if (type === 'winner') symbolSpan.innerHTML = KING_BADGE_TROPHY_SVG;
+                    else symbolSpan.textContent = symbol;
                     iconEl.appendChild(symbolSpan);
 
                     badgeEl.appendChild(iconEl);
@@ -9109,16 +9116,16 @@
                     const winnerSq = (winnerColor === 'w') ? whiteKingSq : blackKingSq;
                     const loserSq = (loserColor === 'w') ? whiteKingSq : blackKingSq;
 
-                    if (winnerSq) addKingBadge(winnerSq, 'winner', 'Winner', 'Winner (Checkmate)');
-                    if (loserSq) addKingBadge(loserSq, 'loser', 'Loser', 'Checkmated');
+                    if (winnerSq) addKingBadge(winnerSq, 'winner', '🏆', 'Winner (Checkmate)');
+                    if (loserSq) addKingBadge(loserSq, 'loser', '#', 'Checkmated');
                 } else if (isResigned) {
                     const loserColor = resignedColor;
                     const winnerColor = (loserColor === 'w') ? 'b' : 'w';
                     const winnerSq = (winnerColor === 'w') ? whiteKingSq : blackKingSq;
                     const loserSq = (loserColor === 'w') ? whiteKingSq : blackKingSq;
 
-                    if (winnerSq) addKingBadge(winnerSq, 'winner', 'Winner', 'Winner (Opponent Resigned)');
-                    if (loserSq) addKingBadge(loserSq, 'loser', 'Loser', 'Resigned');
+                    if (winnerSq) addKingBadge(winnerSq, 'winner', '🏆', 'Winner (Opponent Resigned)');
+                    if (loserSq) addKingBadge(loserSq, 'loser', '#', 'Resigned');
                 } else if (isStalemate) {
                     if (whiteKingSq) addKingBadge(whiteKingSq, 'stalemate', '½', 'Stalemate (Draw)');
                     if (blackKingSq) addKingBadge(blackKingSq, 'stalemate', '½', 'Stalemate (Draw)');
