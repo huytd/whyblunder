@@ -653,6 +653,103 @@ console.log("Testing SelfReview...");
 }
 console.log("✓ SelfReview passed!");
 
+// Annotated PGN export
+console.log("Testing PgnExport...");
+{
+    const PgnExport = require('./js/pgn-export.js');
+
+    assert.strictEqual(PgnExport.evalTag('+1.20'), '1.20');
+    assert.strictEqual(PgnExport.evalTag('-0.35'), '-0.35');
+    assert.strictEqual(PgnExport.evalTag('M3'), '#3');
+    assert.strictEqual(PgnExport.evalTag('-M2'), '#-2');
+    assert.strictEqual(PgnExport.evalTag('abc'), null);
+    assert.strictEqual(PgnExport.cleanComment('a {b} <b>c</b>\n d'), 'a (b) c d', 'Comments must not contain braces, markup or newlines');
+    assert.strictEqual(PgnExport.qualityKey({ quality: 'missed win' }), 'miss');
+    assert.strictEqual(PgnExport.fileName({ white: 'A B', black: 'C/D', date: '2024.01.02' }), 'A_B_vs_C_D_2024.01.02_annotated.pgn');
+    assert.strictEqual(PgnExport.fileName({ white: 'A', black: 'B', date: '????.??.??' }), 'A_vs_B_annotated.pgn');
+
+    const mk = (san, q, ev, analysis) => ({ move: san, quality: q, detailed_quality: q, evaluation: ev, analysis: analysis || {} });
+    const game = [
+        mk('e4', 'book', '+0.30'),
+        mk('e5', 'book', '+0.30'),
+        mk('Qh5', 'inaccuracy', '-0.10', {
+            best_move: 'Nf3', best_evaluation: '+0.30', principal_variation: '2. Nf3 Nc6 3. Bb5',
+            why: {
+                bluf: { text: 'Qh5 brings the queen out {early}.' },
+                alternatives: [
+                    { san: 'Nf3', uci: 'g1f3', evaluation: '+0.30', verdict: 'better', reason: 'develops', pv: ['g1f3', 'b8c6', 'f1b5'] },
+                    { san: 'Nc3', uci: 'b1c3', evaluation: '+0.20', verdict: 'about equal', reason: 'also fine', pv: ['b1c3'] }
+                ]
+            }
+        }),
+        mk('Nc6', 'best', '-0.10'),
+        mk('Bc4', 'good move', '-0.10'),
+        mk('Nf6', 'blunder', 'M1', {
+            best_move: 'g6', best_evaluation: '+0.00', refutation: 'Qxf7#', refutation_variation: '4. Qxf7#',
+            why: { alternatives: [{ san: 'g6', uci: 'g7g6', evaluation: '+0.00', verdict: 'better', reason: 'blocks', pv: ['g7g6', 'h5f3'] }] }
+        })
+    ];
+    const startFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const opts = {
+        gameInfo: { white: 'Alice', black: 'Bob "B"', result: '1-0', date: '2024.01.02', eco: 'C20', opening: "King's Pawn Game" },
+        accuracy: { white: 90.12, black: 40 },
+        depth: 18,
+        notes: { 5: 'Your review: you rated it good.' },
+        extraLines: [
+            { startFen, moves: ['e4', 'e5', 'Nf3', 'Nc6'], comment: 'Your line' },
+            { startFen, moves: ['e4', 'e5'], comment: 'Your line' } // never leaves the game: dropped
+        ]
+    };
+    const pgn = PgnExport.build(game, opts);
+    assert.strictEqual(PgnExport.build(game, opts), pgn, 'Export must be deterministic');
+    assert.ok(pgn.startsWith('[Event "?"]\n[Site "?"]\n[Date "2024.01.02"]\n[Round "-"]\n[White "Alice"]\n[Black "Bob \\"B\\""]\n[Result "1-0"]'), 'Seven Tag Roster first, quotes escaped');
+    assert.ok(pgn.includes('[Annotator "WhyBlunder"]'));
+    assert.ok(pgn.includes('[ECO "C20"]'));
+    assert.ok(/Accuracy: White 90\.1, Black 40\.0\./.test(pgn.replace(/\s+/g, ' ')), 'Accuracy goes in the opening comment');
+    const flat = pgn.replace(/\s+/g, ' ');
+    assert.ok(flat.includes('2. Qh5 $6 { [%eval -0.10] Inaccuracy. Nf3 was best (+0.30). Qh5 brings the queen out (early). }'), 'Flagged move: NAG, eval, verdict, best move, why text');
+    assert.ok(flat.includes('(2. Nf3 { [%eval 0.30] Better: develops } 2... Nc6 3. Bb5)'), 'Engine alternative as a variation');
+    assert.ok(!flat.includes('2. Nc3'), 'Only lines that beat a flagged move by default');
+    assert.ok(flat.includes('(2. Nf3 { Your line } 2... Nc6)'), 'Explored line branches where it leaves the game');
+    assert.strictEqual((flat.match(/Your line/g) || []).length, 1, 'A line that never leaves the game is dropped');
+    assert.ok(flat.includes('3... Nf6 $4 { [%eval #1] Blunder. g6 was best (+0.00). Your review: you rated it good. }'), 'Mate eval and self-review note');
+    assert.ok(flat.includes('{ The punishment was 4. Qxf7#. } 1-0'), 'A final blunder keeps its punishment in a comment');
+    assert.ok(flat.includes('1. e4 { [%eval 0.30] } 1... e5'), 'Black move after a comment gets its number');
+    assert.ok(pgn.split('\n').every(l => l.length <= 80), 'Movetext wrapped at 80 columns');
+    assert.ok(!/\[%eval\n/.test(pgn), '[%eval] tags are never split across lines');
+    const parsed = new Chess();
+    assert.ok(parsed.load_pgn(pgn), 'Exported PGN must load in chess.js');
+    assert.strictEqual(parsed.history().join(' '), 'e4 e5 Qh5 Nc6 Bc4 Nf6');
+
+    const all = PgnExport.build(game, Object.assign({}, opts, { lines: 'all' })).replace(/\s+/g, ' ');
+    assert.ok(all.includes('(2. Nc3 { [%eval 0.20] About equal: also fine })'), "lines: 'all' keeps every alternative");
+    const none = PgnExport.build(game, Object.assign({}, opts, { lines: 'none', extraLines: [] }));
+    assert.ok(!none.includes('('.concat('2. Nf3')) && !none.includes('punishment'), "lines: 'none' has no variations");
+
+    // Punishment hangs after the reply when the opponent missed it
+    const missed = [
+        mk('e4', 'book', '+0.30'), mk('e5', 'book', '+0.30'), mk('Bc4', 'book', '+0.20'), mk('Nc6', 'book', '+0.20'),
+        mk('Qh5', 'good move', '+0.10'),
+        mk('Nf6', 'blunder', '+9.00', { best_move: 'g6', refutation: 'Qxf7#', refutation_variation: '4. Qxf7#' }),
+        mk('Nf3', 'miss', '+0.20', { best_move: 'Qxf7#', best_evaluation: 'M1' })
+    ];
+    const missedPgn = PgnExport.build(missed, { gameInfo: { result: '*' } }).replace(/\s+/g, ' ');
+    assert.ok(missedPgn.includes('4. Nf3 $2'), 'Miss gets a ? NAG');
+    assert.ok(missedPgn.includes('(4. Qxf7# { [%eval #1] Best })'), 'Old cache entries fall back to principal_variation / best move');
+    assert.strictEqual((missedPgn.match(/4\. Qxf7#/g) || []).length, 1, 'The punishment is not repeated when the best line already shows it');
+    assert.ok(new Chess().load_pgn(PgnExport.build(missed, {})), 'PGN without game info still loads');
+
+    // index.html wiring
+    assert.ok(indexHtml.includes('<script src="js/pgn-export.js"></script>'), 'pgn-export.js must be loaded');
+    assert.ok(indexHtml.includes('id="ccExportPgn"'), 'Game Review summary offers the annotated PGN download');
+    assert.ok(indexHtml.includes('id="ccCopyPgn"'), 'Game Review summary offers copying the annotated PGN');
+    assert.ok(indexHtml.includes('id="btnMovesExportPgn"'), 'The move list offers the export once the summary is closed');
+    assert.ok(indexHtml.includes('id="ccExportAllLines"'), 'Export can include engine lines for every move');
+    assert.ok(indexHtml.includes('rememberExploredLine(startingFen, lineMoves.map(x => x.san));'), 'Explored lines are kept for the export');
+    assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'pgn-export.js'), 'utf8')), 'PGN export must be deterministic');
+}
+console.log("✓ PgnExport passed!");
+
 // Game Review accuracy helpers (chess.com-style UI)
 console.log("Testing Game Review accuracy helpers...");
 {

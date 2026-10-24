@@ -105,6 +105,17 @@ Most coaches agree that an engine-only review teaches little. You should first g
 
 Reviews are saved in `localStorage` under `whyblunder_self_review_v1` (the 30 most recent games). A checkbox lets you skip straight to the engine analysis.
 
+### 6. Annotated PGN Export (`js/pgn-export.js`)
+
+After the review, **Export annotated PGN** in the Game Review panel (or the download chip in the Moves header) saves the game as a standard PGN that Lichess studies, ChessBase or SCID can import. The copy button puts the same text on the clipboard. The export contains:
+
+- **Evaluations**: a `[%eval]` tag after every move (White's point of view, `#n` for mates).
+- **Classifications**: NAGs (`!!`, `!`, `?!`, `?`, `??`) and a comment with the verdict, the best move and the "why" text, plus the threat the move ignored.
+- **Engine lines**: for each inaccuracy, mistake, miss and blunder, the alternatives that beat it, and the punishment line when the opponent missed it. A checkbox adds the engine's alternatives for every move.
+- **Your work**: the lines you tried on the board ("Your line") and your self-review answers.
+
+The accuracy and the opening go in the opening comment. The export is pure and deterministic, and it runs in Node too (`PgnExport.build(moves, options)`).
+
 ---
 
 ## Architectural Trade-offs

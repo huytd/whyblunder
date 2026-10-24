@@ -4657,6 +4657,20 @@
             padding: 12px 14px 16px;
             border-top: 1px solid var(--lic-border);
         }
+        .cc-export { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--lic-border); }
+        .cc-export-row { display: flex; gap: 8px; }
+        .cc-export-download { flex: 1; }
+        .cc-export-copy { padding: 0 14px; }
+        .cc-export-opt {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            font-size: var(--lic-fs-sm);
+            color: var(--lic-text-muted);
+            cursor: pointer;
+        }
+        .cc-export-opt input { accent-color: var(--cc-cta, var(--lic-blue)); }
 
         /* --- Sidebar (desktop only) --- */
         .cc-sidebar { display: none; }
@@ -6025,6 +6039,7 @@
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <button id="btnMovesSelfReview" class="lic-chip-btn d-none" title="Self review: the critical moments, on your own"><i class="bi bi-pencil-square"></i><span class="sr-open-label visually-hidden">Self review</span></button>
+                            <button id="btnMovesExportPgn" class="lic-chip-btn d-none" title="Export annotated PGN (evaluations, comments, engine lines and your lines)" aria-label="Export annotated PGN"><i class="bi bi-download"></i></button>
                             <button id="btnMovesImport" class="lic-chip-btn" title="Import game"><i class="bi bi-box-arrow-in-down me-1"></i> Import</button>
                             <button id="btnFlip" class="lic-chip-btn" title="Flip Board (F)"><i class="bi bi-arrow-left-right me-1"></i> Flip</button>
                         </div>
@@ -6191,6 +6206,13 @@
                 <footer class="cc-review-footer">
                     <button type="button" class="cc-btn-cta w-100" id="ccStartReview">Start Review</button>
                     <button type="button" class="sr-btn-secondary w-100 mt-2" id="ccSelfReview"><i class="bi bi-pencil-square me-1"></i> <span class="sr-open-label">Review it yourself</span></button>
+                    <div class="cc-export" id="ccExport">
+                        <div class="cc-export-row">
+                            <button type="button" class="sr-btn-secondary cc-export-download" id="ccExportPgn" title="Download the game as PGN with evaluations, comments and engine lines"><i class="bi bi-download me-1"></i> Export annotated PGN</button>
+                            <button type="button" class="sr-btn-secondary cc-export-copy" id="ccCopyPgn" title="Copy annotated PGN" aria-label="Copy annotated PGN"><i class="bi bi-clipboard"></i></button>
+                        </div>
+                        <label class="cc-export-opt"><input type="checkbox" id="ccExportAllLines"> Engine lines for every move, not just the errors</label>
+                    </div>
                 </footer>
             </section>
 
@@ -6449,6 +6471,7 @@
     <script src="js/browser-analyzer.js"></script>
     <script src="js/coach-manager.js"></script>
     <script src="js/self-review.js"></script>
+    <script src="js/pgn-export.js"></script>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -6467,6 +6490,8 @@
             let animationTimeout = null;
             let browserDoctor = null;
             let currentGameInfo = null;
+            let currentAnalysisDepth = null;
+            let exploredLines = []; // "Your Line" variations tried this session, kept for the PGN export
 
             // DOM elements
             const pgnInput = document.getElementById('pgnInput');
@@ -7676,6 +7701,7 @@
                         }
                         moves = cached.moves;
                         currentGameInfo = cached.game_info || {};
+                        currentAnalysisDepth = cached.depth || analysisDepth;
 
                         displayGameInfo(currentGameInfo);
                         preprocessMoveData();
@@ -7723,6 +7749,7 @@
                             if (cached && cached.moves && cached.moves.length > 0) {
                                 moves = cached.moves;
                                 currentGameInfo = cached.game_info || {};
+                                currentAnalysisDepth = cached.depth || analysisDepth;
                                 displayGameInfo(currentGameInfo);
                                 preprocessMoveData();
                                 displayAnalysis(moves);
@@ -7794,6 +7821,7 @@
                     }
                     moves = result.moves || [];
                     currentGameInfo = result.game_info || {};
+                    currentAnalysisDepth = analysisDepth;
                     
                     if (moves.length === 0) {
                         analysisContainer.innerHTML = `
@@ -7842,6 +7870,7 @@
 
             function preprocessMoveData() {
                 moveHistory = [];
+                exploredLines = [];
                 chess.reset();
                 
                 moves.forEach((move, index) => {
@@ -10489,6 +10518,7 @@
                     moveNumber: parseInt(fenParts[5], 10) || 1
                 };
                 const lineMoves = keptMoves.concat([step]).map((x, i) => Object.assign({}, x, { stepIndex: i }));
+                rememberExploredLine(startingFen, lineMoves.map(x => x.san));
                 stopVariationAnimationTimer();
                 activeVariation = {
                     moveIndex,
@@ -10501,6 +10531,15 @@
                     stepIndex: lineMoves.length - 1
                 };
                 jumpToVariationStep(moveIndex, 'explore', lineMoves.length - 1, false);
+            }
+
+            // Keep the longest version of each line: extending a line replaces it, a branch is a new one
+            function rememberExploredLine(startingFen, sans) {
+                const key = sans.join(' ');
+                const sameStart = (x) => x.startFen === startingFen;
+                if (exploredLines.some(x => sameStart(x) && (x.moves.join(' ') + ' ').startsWith(key + ' '))) return;
+                exploredLines = exploredLines.filter(x => !(sameStart(x) && (key + ' ').startsWith(x.moves.join(' ') + ' ')));
+                exploredLines.push({ startFen: startingFen, moves: sans.slice() });
             }
 
             function renderExploreRow() {
@@ -12869,6 +12908,21 @@
                 </div>`;
             }
 
+            // The same answers as plain text, for the annotated PGN export
+            function srMoveNoteText(index) {
+                if (typeof SelfReview === 'undefined') return '';
+                const saved = SelfReview.load(srGameKey());
+                const a = saved && saved.answers && saved.answers.moments && saved.answers.moments[index];
+                if (!a || !(a.rating || a.eval || a.candidate || a.note)) return '';
+                const parts = [];
+                if (a.rating) parts.push(`rated it ${((SelfReview.MOVE_CHOICES.find(c => c.key === a.rating) || {}).label || '').toLowerCase()}`);
+                if (a.eval) parts.push(`felt ${srEvalLabel(a.eval).toLowerCase()}`);
+                if (a.candidate) parts.push(`suggested ${a.candidate}`);
+                let text = 'Your review: ' + (parts.length ? `you ${parts.join(', ')}.` : '');
+                if (a.note) text += ` "${a.note.trim()}"`;
+                return text.trim();
+            }
+
             (function initSelfReviewUi() {
                 const panel = document.getElementById('selfReviewPanel');
                 if (!panel) return;
@@ -13206,6 +13260,10 @@
                 const strip = document.getElementById('ccEvalGraphStrip');
                 const list = movesList || moves;
                 if (!body) return;
+                const exportBox = document.getElementById('ccExport');
+                if (exportBox) exportBox.hidden = !list || list.length === 0;
+                const exportChip = document.getElementById('btnMovesExportPgn');
+                if (exportChip) exportChip.classList.toggle('d-none', !list || list.length === 0);
                 if (!list || list.length === 0) {
                     srSyncOpenButtons();
                     body.innerHTML = '<div class="cc-review-empty">Import and analyze a game to see its review.</div>';
@@ -13293,6 +13351,56 @@
                 document.body.classList.remove('cc-summary-open');
             }
 
+            // ---- Annotated PGN export ----
+            function buildAnnotatedPgn() {
+                if (typeof PgnExport === 'undefined' || !moves.length) return '';
+                const notes = {};
+                moves.forEach((m, i) => {
+                    const note = srMoveNoteText(i);
+                    if (note) notes[i] = note;
+                });
+                const allLines = document.getElementById('ccExportAllLines');
+                const acc = (typeof ChessEvaluator !== 'undefined' && ChessEvaluator.gameAccuracy) ? ChessEvaluator.gameAccuracy(moves) : null;
+                return PgnExport.build(moves, {
+                    gameInfo: currentGameInfo || {},
+                    accuracy: acc,
+                    depth: currentAnalysisDepth,
+                    lines: allLines && allLines.checked ? 'all' : 'key',
+                    notes,
+                    extraLines: exploredLines.map(x => Object.assign({ comment: 'Your line' }, x))
+                });
+            }
+
+            function downloadAnnotatedPgn() {
+                const pgnText = buildAnnotatedPgn();
+                if (!pgnText) return;
+                const blob = new Blob([pgnText], { type: 'application/x-chess-pgn;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = PgnExport.fileName(currentGameInfo);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 0);
+            }
+
+            function copyAnnotatedPgn(btn) {
+                const pgnText = buildAnnotatedPgn();
+                if (!pgnText) return;
+                const done = () => {
+                    if (!btn) return;
+                    const icon = btn.querySelector('i');
+                    if (icon) icon.className = 'bi bi-clipboard-check';
+                    setTimeout(() => { if (icon) icon.className = 'bi bi-clipboard'; }, 1500);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(pgnText).then(done).catch(() => prompt('Copy PGN:', pgnText));
+                } else {
+                    prompt('Copy PGN:', pgnText);
+                }
+            }
+
             function ccSyncSidebar() {
                 document.querySelectorAll('.cc-sidebar-item[data-cc-mode]').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.ccMode === currentAppMode);
@@ -13361,6 +13469,13 @@
 
                 const reviewClose = document.getElementById('ccReviewClose');
                 if (reviewClose) reviewClose.addEventListener('click', closeReviewSummary);
+
+                const exportPgn = document.getElementById('ccExportPgn');
+                if (exportPgn) exportPgn.addEventListener('click', downloadAnnotatedPgn);
+                const exportChip = document.getElementById('btnMovesExportPgn');
+                if (exportChip) exportChip.addEventListener('click', downloadAnnotatedPgn);
+                const copyPgn = document.getElementById('ccCopyPgn');
+                if (copyPgn) copyPgn.addEventListener('click', () => copyAnnotatedPgn(copyPgn));
 
                 const startReview = document.getElementById('ccStartReview');
                 if (startReview) {
