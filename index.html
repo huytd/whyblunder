@@ -4695,7 +4695,17 @@
         .gc-body { margin-top: 4px; color: #312e2b; }
         .gc-body p { margin: 0 0 6px; }
         .gc-body p:last-child { margin-bottom: 0; }
-        .gc-body b { font-weight: 800; }
+        .gc-body b, .gc-body strong { font-weight: 800; }
+        .gc-body ul, .gc-body ol { margin: 0 0 6px; padding-left: 1.3em; }
+        .gc-body li { margin: 2px 0; }
+        .gc-body li::marker { color: #77746f; }
+        .gc-body .gc-md-heading { margin: 4px 0 2px; font-weight: 800; color: #312e2b; }
+        .gc-body blockquote { margin: 0 0 6px; padding: 2px 0 2px 10px; border-left: 3px solid #d8d6d3; color: #5d5b58; }
+        .gc-body code { padding: 0 3px; border-radius: 3px; background: #f0eeeb; color: #312e2b; font-size: 0.85em; }
+        .gc-body pre { margin: 0 0 6px; padding: 6px 8px; border-radius: 6px; background: #f0eeeb; overflow-x: auto; }
+        .gc-body pre code { padding: 0; background: none; }
+        .gc-body hr { margin: 8px 0; border: 0; border-top: 1px solid #e6e4e1; opacity: 1; }
+        .gc-body del { opacity: 0.7; }
         .gc-from, .gc-muted, .gc-actions { font-size: 0.8125rem; color: #77746f; }
         .gc-from { margin-bottom: 2px; }
         .gc-muted { font-style: italic; }
@@ -13726,12 +13736,15 @@
                     ? GameCommentary.linkMoves(text, { moves: c.moves, index })
                     : { segments: [{ type: 'text', text: String(text || '') }], lines: [] };
                 commentaryShownLines = linked.lines;
-                const html = linked.segments.map(s => s.type !== 'move' ? escapeHtml(s.text)
-                    : `<button type="button" class="gc-move" data-gc-move data-gc-line="${s.line}" data-gc-step="${s.step}"${s.gameIndex !== null ? ` data-gc-game="${s.gameIndex}"` : ''} title="${s.gameIndex !== null ? 'Go to this move of the game' : 'Show this line on the board'}">${escapeHtml(s.text)}</button>`
-                ).join('');
-                return html.trim().split(/\n\s*\n/).filter(Boolean).map(par =>
-                    `<p>${par.trim().replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')}</p>`
-                ).join('');
+                // Markdown first (moves stand in as placeholders), then the move buttons go back in
+                const buttons = [];
+                const raw = linked.segments.map(s => {
+                    if (s.type !== 'move') return s.text;
+                    buttons.push(`<button type="button" class="gc-move" data-gc-move data-gc-line="${s.line}" data-gc-step="${s.step}"${s.gameIndex !== null ? ` data-gc-game="${s.gameIndex}"` : ''} title="${s.gameIndex !== null ? 'Go to this move of the game' : 'Show this line on the board'}">${escapeHtml(s.text)}</button>`);
+                    return `${GameCommentary.PLACEHOLDER_OPEN}${buttons.length - 1}${GameCommentary.PLACEHOLDER_CLOSE}`;
+                }).join('');
+                const placeholder = new RegExp(`${GameCommentary.PLACEHOLDER_OPEN}(\\d+)${GameCommentary.PLACEHOLDER_CLOSE}`, 'g');
+                return GameCommentary.markdownToHtml(raw.trim()).replace(placeholder, (m, i) => buttons[Number(i)] || '');
             }
 
             function openCommentaryMove(el) {

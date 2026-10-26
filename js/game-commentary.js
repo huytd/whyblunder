@@ -577,6 +577,86 @@
         return text;
     }
 
+    function escapeHtml(text) {
+        return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Placeholders the caller puts in the text (e.g. for move buttons) pass through untouched.
+    const PLACEHOLDER_OPEN = '';
+    const PLACEHOLDER_CLOSE = '';
+
+    /** Inline markdown on one line: `code`, **bold**, __bold__, *italic*, _italic_, ~~strike~~, [text](url) -> text. */
+    function inlineMarkdown(line) {
+        const codes = [];
+        let t = String(line).replace(/`([^`]+)`/g, (m, code) => {
+            codes.push(`<code>${escapeHtml(code)}</code>`);
+            return `${codes.length - 1}`;
+        });
+        t = escapeHtml(t)
+            .replace(/\[([^\]]+)\]\((?:[^)\s]+)\)/g, '$1')
+            .replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[^\w])__(?=\S)([\s\S]*?\S)__(?=[^\w]|$)/g, '$1<strong>$2</strong>')
+            .replace(/(^|[^\w*])\*(?=\S)([^*]*?\S)\*(?=[^\w*]|$)/g, '$1<em>$2</em>')
+            .replace(/(^|[^\w])_(?=\S)([^_]*?\S)_(?=[^\w]|$)/g, '$1<em>$2</em>')
+            .replace(/~~(?=\S)([\s\S]*?\S)~~/g, '<del>$1</del>');
+        return t.replace(/(\d+)/g, (m, i) => codes[Number(i)]);
+    }
+
+    // "1. e4", "12... Nxd5": move numbers, not a numbered list
+    const MOVE_START = new RegExp(`^(?:\\.\\.|…)?\\s*${SAN_BODY}(?![\\w-])`);
+
+    /**
+     * The markdown models write, as safe HTML: paragraphs (single newlines kept as
+     * <br>), # headings, - / * / + bullets, 1. / 1) numbered lists (but not move
+     * numbers like "1. e4"), > quotes, --- rules, ``` code blocks and the inline
+     * marks of inlineMarkdown(). Everything else is escaped text; links keep only
+     * their text. Deterministic, no DOM.
+     */
+    function markdownToHtml(text) {
+        const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+        const out = [];
+        let para = [];
+        let list = null; // { tag, items }
+        let quote = [];
+        const flushPara = () => { if (para.length) out.push(`<p>${para.map(inlineMarkdown).join('<br>')}</p>`); para = []; };
+        const flushList = () => { if (list) out.push(`<${list.tag}>${list.items.map(i => `<li>${inlineMarkdown(i)}</li>`).join('')}</${list.tag}>`); list = null; };
+        const flushQuote = () => { if (quote.length) out.push(`<blockquote>${markdownToHtml(quote.join('\n'))}</blockquote>`); quote = []; };
+        const flushAll = () => { flushPara(); flushList(); flushQuote(); };
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (/^\s*```/.test(line)) {
+                flushAll();
+                const code = [];
+                for (i++; i < lines.length && !/^\s*```/.test(lines[i]); i++) code.push(lines[i]);
+                out.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
+                continue;
+            }
+            if (/^\s*>/.test(line)) { flushPara(); flushList(); quote.push(line.replace(/^\s*>\s?/, '')); continue; }
+            flushQuote();
+            if (!line.trim()) { flushPara(); flushList(); continue; }
+            const heading = line.match(/^\s*#{1,6}\s+(.*?)\s*#*\s*$/);
+            if (heading) { flushAll(); out.push(`<p class="gc-md-heading">${inlineMarkdown(heading[1])}</p>`); continue; }
+            if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); out.push('<hr>'); continue; }
+            const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+            const numbered = line.match(/^\s*(\d+)([.)])\s+(.*)$/);
+            const isMoveNumber = numbered && numbered[2] === '.' && MOVE_START.test(numbered[3]);
+            if (bullet || (numbered && !isMoveNumber)) {
+                flushPara();
+                const tag = bullet ? 'ul' : 'ol';
+                if (list && list.tag !== tag) flushList();
+                if (!list) list = { tag, items: [] };
+                list.items.push(bullet ? bullet[1] : numbered[3]);
+                continue;
+            }
+            // A line right under a list item, indented: part of that item
+            if (list && /^\s{2,}\S/.test(line)) { list.items[list.items.length - 1] += ` ${line.trim()}`; continue; }
+            flushList();
+            para.push(line.trim());
+        }
+        flushAll();
+        return out.join('');
+    }
+
     function getStorage(storage) {
         if (storage) return storage;
         try {
@@ -670,6 +750,9 @@
         cleanText,
         isClassifierVerdict,
         linkMoves,
+        markdownToHtml,
+        PLACEHOLDER_OPEN,
+        PLACEHOLDER_CLOSE,
         moveLabel,
         movesSoFar,
         createSseDecoder,

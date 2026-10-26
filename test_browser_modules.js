@@ -853,6 +853,25 @@ console.log("Testing GameCommentary...");
     const introLinks = GameCommentary.linkMoves('Expect 1. e4 e5 2. Nf3 today.', { moves: ['e4', 'e5', 'Nf3'], index: -1 }).segments.filter(x => x.type === 'move');
     assert.deepStrictEqual(introLinks.map(x => x.gameIndex), [0, 1, 2], 'From the start position too');
 
+    // markdownToHtml: the markdown models write, as safe HTML
+    const md = GameCommentary.markdownToHtml;
+    assert.strictEqual(md('**Nf6??** is a *disaster*.'), '<p><strong>Nf6??</strong> is a <em>disaster</em>.</p>');
+    assert.strictEqual(md('Line one\nline two\n\nNew paragraph'), '<p>Line one<br>line two</p><p>New paragraph</p>', 'Paragraphs and line breaks');
+    assert.strictEqual(md('## Key moment\nText'), '<p class="gc-md-heading">Key moment</p><p>Text</p>', 'Headings');
+    assert.strictEqual(md('- one\n- two\n  more'), '<ul><li>one</li><li>two more</li></ul>', 'Bullets, with continued lines');
+    assert.strictEqual(md('1) develop\n2) castle'), '<ol><li>develop</li><li>castle</li></ol>', 'Numbered lists');
+    assert.strictEqual(md('1. Develop your pieces'), '<ol><li>Develop your pieces</li></ol>');
+    assert.strictEqual(md('1. e4 e5 2. Qh5 is the Wayward Queen.'), '<p>1. e4 e5 2. Qh5 is the Wayward Queen.</p>', 'Move numbers are not a list');
+    assert.strictEqual(md('12... Nxd5 wins a pawn.'), '<p>12... Nxd5 wins a pawn.</p>');
+    assert.strictEqual(md('> Pattern: watch f7'), '<blockquote><p>Pattern: watch f7</p></blockquote>', 'Quotes');
+    assert.strictEqual(md('a\n\n---\n\nb'), '<p>a</p><hr><p>b</p>', 'Rules');
+    assert.strictEqual(md('`Qxf7#` and ~~bad~~'), '<p><code>Qxf7#</code> and <del>bad</del></p>');
+    assert.strictEqual(md('```\n<b>x</b>\n```'), '<pre><code>&lt;b&gt;x&lt;/b&gt;</code></pre>', 'Code blocks are escaped');
+    assert.strictEqual(md('<script>alert(1)</script> [site](http://x.test)'), '<p>&lt;script&gt;alert(1)&lt;/script&gt; site</p>', 'HTML is escaped, links keep their text');
+    assert.strictEqual(md('snake_case and 2*3*4'), '<p>snake_case and 2*3*4</p>', 'No emphasis inside words');
+    assert.strictEqual(md(`**${GameCommentary.PLACEHOLDER_OPEN}0${GameCommentary.PLACEHOLDER_CLOSE}** wins`), `<p><strong>${GameCommentary.PLACEHOLDER_OPEN}0${GameCommentary.PLACEHOLDER_CLOSE}</strong> wins</p>`, 'Placeholders pass through');
+    assert.strictEqual(md(''), '');
+
     // Safety-classifier verdicts are not commentary
     ['User Safety: safe', 'User Safety: safe\nResponse Safety: safe', '{"User Safety": "safe", "Response Safety": "safe"}', 'Safety: Safe\nCategories: None', 'unsafe\nS1', 'safe'].forEach(t =>
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), true, `Verdict: ${t}`));
@@ -927,6 +946,7 @@ console.log("Testing GameCommentary...");
     assert.ok(/const moveBtn = e\.target\.closest\('\[data-gc-move\]'\);\s*if \(moveBtn\) return openCommentaryMove\(moveBtn\);/.test(indexHtml), 'Clicking a move opens it');
     assert.ok(/function openCommentaryMove\(el\) \{\s*if \(el\.dataset\.gcGame !== undefined\) \{\s*goToMove/.test(indexHtml) && indexHtml.includes("jumpToVariationStep(currentMoveIndex, 'commentary',"), 'A game move goes to the game, another line opens in the line viewer');
     assert.ok(indexHtml.includes("lt === 'commentary' ? 'Commentary Line'"), 'Commentary lines get their own badge');
+    assert.ok(/return GameCommentary\.markdownToHtml\(raw\.trim\(\)\)\.replace\(placeholder, \(m, i\) => buttons\[Number\(i\)\] \|\| ''\);/.test(indexHtml), 'The commentary is rendered as markdown, with the move buttons put back in');
     assert.ok(indexHtml.includes('for (let i = Math.max(-1, index - 3); i < index; i++) {'), 'Context is only the moves just before');
     assert.ok(/if \(entry\.status === 'error'\) c\.paused = true;\s*scheduleCommentaryRender\(\);\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Each finished move starts the next; an error pauses the writer');
     assert.ok(/function maybeAutoStartCommentary\(\) \{\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Whatever is left is written once the analysis is done');
