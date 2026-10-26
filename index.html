@@ -4699,6 +4699,8 @@
         .gc-from, .gc-muted, .gc-actions { font-size: 0.8125rem; color: #77746f; }
         .gc-from { margin-bottom: 2px; }
         .gc-muted { font-style: italic; }
+        .gc-muted b { font-style: normal; color: #312e2b; }
+        .gc-timer { font-style: normal; font-variant-numeric: tabular-nums; }
         .gc-outro { margin-top: 6px; padding-top: 6px; border-top: 1px solid #e6e4e1; }
         .gc-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
         .gc-link { border: 0; background: none; padding: 0; color: #5c86ad; text-decoration: underline; font-size: 0.8125rem; }
@@ -13645,13 +13647,32 @@
                 </form>`;
             }
 
+            // Sections of the commentary so far (re-parsed lazily: at most once per rendered frame).
+            function commentaryAttached(c) {
+                if (c.dirty) {
+                    c.attached = GameCommentary.attach(GameCommentary.parse(c.text), moves);
+                    c.dirty = false;
+                }
+                return c.attached;
+            }
+
+            // While the model has not written anything yet: thinking (reasoning models) or waiting.
+            function commentaryWaitingHtml(c) {
+                const secs = c.startedAt ? Math.floor((Date.now() - c.startedAt) / 1000) : 0;
+                const timer = secs >= 2 ? ` <span class="gc-timer">${secs}s</span>` : '';
+                return c.thinking
+                    ? `<div class="gc-muted">The model is thinking it through before it starts writing…${timer}</div>`
+                    : `<div class="gc-muted">Waiting for the model to start writing…${timer}</div>`;
+            }
+
             // Body of the coach bubble in AI mode for move `index` (-1 = start position).
             function commentaryBodyHtml(index) {
                 if (commentarySettingsOpen || !commentaryConfigured()) return commentarySettingsHtml();
                 const c = commentary && commentary.key === commentaryGameKey() ? commentary : null;
-                if (!c) return '<div class="gc-muted">Warming up the commentary…</div>';
+                if (!c) return '<div class="gc-muted">Waiting for the model to start writing…</div>';
                 const live = c.status === 'loading' || c.status === 'streaming';
-                const part = c.attached ? GameCommentary.forMove(c.attached, index, moves.length) : null;
+                const attached = c.text ? commentaryAttached(c) : null;
+                const part = attached ? GameCommentary.forMove(attached, index, moves.length) : null;
                 let body = '';
                 if (c.status === 'error') {
                     body = `<div class="gc-error">${escapeHtml(c.error)}</div>`;
@@ -13660,10 +13681,12 @@
                     if (part.intro) body += commentaryTextHtml(part.intro);
                     if (part.text) body += commentaryTextHtml(part.text);
                     if (part.outro) body += `<div class="gc-outro">${commentaryTextHtml(part.outro)}</div>`;
-                } else if (c.status === 'loading') {
-                    body = '<div class="gc-muted">Warming up the commentary…</div>';
+                } else if (live && !c.text) {
+                    body = commentaryWaitingHtml(c);
                 } else if (live) {
-                    body = `<div class="gc-muted">The commentary hasn't reached ${index < 0 ? 'the start' : 'this move'} yet…</div>`;
+                    const last = attached && attached.sections.length ? attached.sections[attached.sections.length - 1].index : -1;
+                    const at = last >= 0 ? `<b>${escapeHtml(commentaryMoveLabel(last))}</b>` : 'the introduction';
+                    body = `<div class="gc-muted">The commentary is at ${at} and will get to this move soon.</div>`;
                 } else {
                     body = '<div class="gc-muted">No commentary for this move.</div>';
                 }
@@ -13694,7 +13717,16 @@
                 if (body) body.innerHTML = commentaryBodyHtml(currentMoveIndex);
             }
 
+            // Ticks the "Waiting… 12s" counter until the first words arrive.
+            let commentaryWaitTimer = null;
+            function syncCommentaryWaitTimer() {
+                const waiting = commentary && (commentary.status === 'loading' || commentary.status === 'streaming') && !commentary.text;
+                if (waiting && !commentaryWaitTimer) commentaryWaitTimer = setInterval(scheduleCommentaryRender, 1000);
+                if (!waiting && commentaryWaitTimer) { clearInterval(commentaryWaitTimer); commentaryWaitTimer = null; }
+            }
+
             function scheduleCommentaryRender() {
+                syncCommentaryWaitTimer();
                 if (commentaryRenderPending) return;
                 commentaryRenderPending = true;
                 (window.requestAnimationFrame || setTimeout)(renderCommentaryBody);
@@ -13713,7 +13745,7 @@
                 if (commentary && (commentary.status === 'loading' || commentary.status === 'streaming')) return;
                 const settings = GameCommentary.loadSettings();
                 if (!GameCommentary.isConfigured(settings)) return;
-                const state = { key: commentaryGameKey(), text: '', status: 'loading', error: '', model: settings.model, attached: null, controller: new AbortController() };
+                const state = { key: commentaryGameKey(), text: '', status: 'loading', error: '', model: settings.model, attached: null, dirty: false, thinking: 0, startedAt: Date.now(), controller: new AbortController() };
                 commentary = state;
                 scheduleCommentaryRender();
 
@@ -13723,8 +13755,12 @@
                         signal: state.controller.signal,
                         onText: (text) => {
                             state.text = text;
+                            state.dirty = true;
                             state.status = 'streaming';
-                            state.attached = GameCommentary.attach(GameCommentary.parse(text), moves);
+                            if (commentary === state) scheduleCommentaryRender();
+                        },
+                        onThinking: (chars) => {
+                            state.thinking = chars;
                             if (commentary === state) scheduleCommentaryRender();
                         }
                     });
@@ -13736,6 +13772,7 @@
 
                 state.controller = null;
                 state.attached = GameCommentary.attach(GameCommentary.parse(state.text), moves);
+                state.dirty = false;
                 const hasText = state.attached.intro || state.attached.sections.length || state.attached.outro;
                 if (!hasText) return failCommentary(state, stopped ? 'Commentary stopped.' : 'The model returned no commentary.');
                 state.status = 'done';

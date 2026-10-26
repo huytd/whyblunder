@@ -882,6 +882,25 @@ console.log("✓ GameCommentary passed!");
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 return res.end('{"choices":[{"message":{"content":"@@ 1. e4\\nNo stream."}}]}');
             }
+            if (seen.body.model === 'untyped-json') {
+                res.writeHead(200, { 'Content-Type': 'text/plain' });
+                return res.end('\n{"choices":[{"message":{"content":"Mislabeled JSON."}}]}');
+            }
+            if (seen.body.model === 'slow' || seen.body.model === 'text-plain-sse' || seen.body.model === 'thinker') {
+                // SSE in pieces, with a pause: the text must arrive before the response ends.
+                res.writeHead(200, { 'Content-Type': seen.body.model === 'text-plain-sse' ? 'text/plain; charset=utf-8' : 'text/event-stream' });
+                const thinker = seen.body.model === 'thinker';
+                if (thinker) {
+                    res.write(': processing\n\ndata: {"choices":[{"delta":{"reasoning_content":"Let me think"}}]}\n\n');
+                    res.write('data: {"choices":[{"delta":{"reasoning":" more"}}]}\n\n');
+                }
+                setTimeout(() => res.write('data: {"choices":[{"delta":{"content":"First"}}]}\n\n'), thinker ? 100 : 0);
+                setTimeout(() => {
+                    res.write('data: {"choices":[{"delta":{"content":" second"}}]}\n\ndata: [DONE]\n\n');
+                    res.end();
+                }, 250);
+                return undefined;
+            }
             res.writeHead(200, { 'Content-Type': 'text/event-stream' });
             res.write('data: {"choices":[{"delta":{"content":"Hello everyone\\n@@ 1. e4\\n"}}]}\n\n');
             res.write('data: {"choices":[{"delta":{"content":"Good move."}}]}\n\ndata: [DONE]\n\n');
@@ -901,6 +920,24 @@ console.log("✓ GameCommentary passed!");
 
         assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'plain' }), '1. e4 *'), '@@ 1. e4\nNo stream.', 'Non-streaming answers work too');
         await assert.rejects(GameCommentary.stream(Object.assign({}, settings, { model: 'broken' }), '1. e4 *'), /401: Invalid API key/, 'API errors are readable');
+        assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'untyped-json' }), '1. e4 *'), 'Mislabeled JSON.', 'A JSON answer is recognized whatever its content-type');
+
+        // Streaming is live: the first words show up before the response is over.
+        for (const model of ['slow', 'text-plain-sse']) {
+            const seenAt = [];
+            const t0 = Date.now();
+            const full = await GameCommentary.stream(Object.assign({}, settings, { model }), '1. e4 *', { onText: t => seenAt.push([t, Date.now() - t0]) });
+            const total = Date.now() - t0;
+            assert.strictEqual(full, 'First second');
+            assert.strictEqual(seenAt[0][0], 'First', `${model}: the first chunk is delivered on its own`);
+            assert.ok(seenAt[0][1] < total - 100, `${model}: text arrives while the response is still streaming`);
+        }
+
+        // Reasoning models: thinking is reported before the first words.
+        const thinking = [];
+        const thought = await GameCommentary.stream(Object.assign({}, settings, { model: 'thinker' }), '1. e4 *', { onThinking: n => thinking.push(n) });
+        assert.strictEqual(thought, 'First second', 'Reasoning text is not part of the commentary');
+        assert.ok(thinking.length >= 1 && thinking[thinking.length - 1] === 17, 'onThinking counts the reasoning characters');
         await assert.rejects(GameCommentary.stream({ baseUrl: 'http://127.0.0.1:1/v1', model: 'm' }, '1. e4 *'), /Could not reach .*CORS/, 'Unreachable endpoints mention CORS');
         console.log("✓ GameCommentary.stream passed!");
     } finally {

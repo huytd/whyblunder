@@ -180,15 +180,20 @@
     /**
      * Incremental decoder for an OpenAI-style SSE stream. Feed it text chunks;
      * it returns the content deltas found so far and remembers partial lines.
+     * Reasoning deltas (reasoning_content / reasoning, sent by "thinking"
+     * models before any content) are counted in `reasoningChars`.
      */
     function createSseDecoder() {
         let buffer = '';
         let done = false;
+        let events = 0;
+        let reasoningChars = 0;
         function take(line) {
             const m = line.match(/^data:\s?(.*)$/);
             if (!m) return '';
             const data = m[1].trim();
             if (!data) return '';
+            events++;
             if (data === '[DONE]') { done = true; return ''; }
             try {
                 const json = JSON.parse(data);
@@ -196,6 +201,8 @@
                 const choice = json.choices && json.choices[0];
                 if (!choice) return '';
                 const delta = choice.delta || choice.message || {};
+                const reasoning = delta.reasoning_content || delta.reasoning;
+                if (typeof reasoning === 'string') reasoningChars += reasoning.length;
                 return typeof delta.content === 'string' ? delta.content : (typeof choice.text === 'string' ? choice.text : '');
             } catch (e) {
                 if (e instanceof SyntaxError) return '';
@@ -214,7 +221,9 @@
                 buffer = '';
                 return rest ? take(rest) : '';
             },
-            get done() { return done; }
+            get done() { return done; },
+            get events() { return events; },
+            get reasoningChars() { return reasoningChars; }
         };
     }
 
@@ -260,8 +269,14 @@
 
     /**
      * Ask the LLM for the commentary. Calls onText(fullTextSoFar) as the
-     * answer streams in and resolves with the full text. Rejects with a
-     * readable message (HTTP errors, unreachable endpoint / CORS).
+     * answer streams in, onThinking(reasoningChars) while a reasoning model
+     * thinks, and resolves with the full text. Rejects with a readable
+     * message (HTTP errors, unreachable endpoint / CORS).
+     *
+     * The body is always read as it arrives, whatever its content-type says
+     * (some servers stream SSE as text/plain or without a type): SSE "data:"
+     * lines are decoded live, and a plain JSON completion (a server that
+     * ignored stream: true) is parsed at the end.
      */
     async function stream(settings, pgn, options) {
         const opts = options || {};
@@ -290,19 +305,53 @@
             text += chunk;
             if (opts.onText) opts.onText(text);
         };
-        const type = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
-        if (type.includes('text/event-stream') && res.body && res.body.getReader) {
-            const decoder = createSseDecoder();
-            const utf8 = new TextDecoder();
-            const reader = res.body.getReader();
-            for (;;) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                emit(decoder.push(utf8.decode(value, { stream: true })));
-            }
-            emit(decoder.push(utf8.decode()) + decoder.end());
-        } else {
+        if (!res.body || !res.body.getReader) {
             emit(completionText(await res.json()));
+            return text;
+        }
+        const decoder = createSseDecoder();
+        const utf8 = new TextDecoder();
+        const reader = res.body.getReader();
+        let raw = '';
+        let mode = ''; // 'sse' | 'json', decided by the first non-blank character
+        let reasoningSeen = 0;
+        const feed = (chunk) => {
+            if (!mode) {
+                raw += chunk;
+                const first = raw.replace(/^\s+/, '').charAt(0);
+                if (!first) return;
+                mode = first === '{' || first === '[' ? 'json' : 'sse';
+                chunk = raw;
+                if (mode === 'sse') raw = '';
+            } else if (mode === 'json') {
+                raw += chunk;
+                return;
+            }
+            if (mode === 'sse') {
+                emit(decoder.push(chunk));
+                if (decoder.reasoningChars !== reasoningSeen) {
+                    reasoningSeen = decoder.reasoningChars;
+                    if (!text && opts.onThinking) opts.onThinking(reasoningSeen);
+                }
+            }
+        };
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            feed(utf8.decode(value, { stream: true }));
+        }
+        feed(utf8.decode());
+        if (mode === 'sse') {
+            emit(decoder.end());
+        } else if (raw.trim()) {
+            let json;
+            try {
+                json = JSON.parse(raw);
+            } catch (e) {
+                throw new Error('The LLM API sent a response that is neither a stream nor JSON.');
+            }
+            if (json && json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+            emit(completionText(json));
         }
         return text;
     }
