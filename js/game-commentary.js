@@ -18,8 +18,9 @@
  * header, so the UI can show "the commentary for this move" while the
  * player steps through the game (and while the text is still streaming).
  *
- * Shared by the browser (parsing, cache) and api/commentary.js (prompt,
- * SSE decoding). Pure: no DOM, no network.
+ * The browser calls the API directly (stream()), with the base URL, model
+ * and key the player saved in localStorage (loadSettings/saveSettings): the
+ * key only goes to the endpoint they chose. No DOM; no network except stream().
  */
 (function(root, factory) {
     if (typeof module === 'object' && module.exports) {
@@ -55,8 +56,9 @@
         'Keep each section to a few sentences, and the sections in game order.'
     ].join('\n');
 
-    const MAX_PGN_CHARS = 200000;
     const STORAGE_KEY = 'whyblunder_commentary_v1';
+    const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
+    const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
 
     /** Chat messages for the annotated PGN (OpenAI chat completions format). */
@@ -224,6 +226,87 @@
         return typeof choice.text === 'string' ? choice.text : '';
     }
 
+    /** Trimmed settings: { baseUrl, model, apiKey }. Base URL without trailing slash. */
+    function normalizeSettings(settings) {
+        const s = settings || {};
+        const str = v => (v === null || v === undefined ? '' : String(v).trim());
+        return {
+            baseUrl: (str(s.baseUrl) || DEFAULT_BASE_URL).replace(/\/+$/, '').replace(/\/chat\/completions$/, ''),
+            model: str(s.model),
+            apiKey: str(s.apiKey)
+        };
+    }
+
+    /** A model is always needed; a key unless the endpoint is not the default one (local servers). */
+    function isConfigured(settings) {
+        const s = normalizeSettings(settings);
+        return Boolean(s.model && (s.apiKey || s.baseUrl !== DEFAULT_BASE_URL));
+    }
+
+    /** fetch() arguments for a streaming chat completion of the annotated PGN. */
+    function buildRequest(settings, pgn, options) {
+        const s = normalizeSettings(settings);
+        const headers = { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' };
+        if (s.apiKey) headers.Authorization = `Bearer ${s.apiKey}`;
+        return {
+            url: `${s.baseUrl}/chat/completions`,
+            init: {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ model: s.model, messages: buildMessages(pgn, options), stream: true })
+            }
+        };
+    }
+
+    /**
+     * Ask the LLM for the commentary. Calls onText(fullTextSoFar) as the
+     * answer streams in and resolves with the full text. Rejects with a
+     * readable message (HTTP errors, unreachable endpoint / CORS).
+     */
+    async function stream(settings, pgn, options) {
+        const opts = options || {};
+        const fetchImpl = opts.fetch || (typeof fetch !== 'undefined' ? fetch : null);
+        if (!fetchImpl) throw new Error('fetch is not available');
+        const req = buildRequest(settings, pgn, opts);
+        let res;
+        try {
+            res = await fetchImpl(req.url, Object.assign({}, req.init, { signal: opts.signal }));
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw e;
+            throw new Error(`Could not reach ${req.url}. Check the base URL, and that the endpoint accepts requests from a browser (CORS).`);
+        }
+        if (!res.ok) {
+            let detail = '';
+            try { detail = (await res.text()).slice(0, 500); } catch (e) {}
+            try {
+                const json = JSON.parse(detail);
+                if (json && json.error) detail = json.error.message || JSON.stringify(json.error);
+            } catch (e) {}
+            throw new Error(`The LLM API answered ${res.status}${detail ? `: ${detail}` : ''}`);
+        }
+        let text = '';
+        const emit = (chunk) => {
+            if (!chunk) return;
+            text += chunk;
+            if (opts.onText) opts.onText(text);
+        };
+        const type = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+        if (type.includes('text/event-stream') && res.body && res.body.getReader) {
+            const decoder = createSseDecoder();
+            const utf8 = new TextDecoder();
+            const reader = res.body.getReader();
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                emit(decoder.push(utf8.decode(value, { stream: true })));
+            }
+            emit(decoder.push(utf8.decode()) + decoder.end());
+        } else {
+            emit(completionText(await res.json()));
+        }
+        return text;
+    }
+
     function getStorage(storage) {
         if (storage) return storage;
         try {
@@ -265,6 +348,32 @@
         }
     }
 
+    function loadSettings(storage) {
+        const s = getStorage(storage);
+        if (!s) return normalizeSettings({});
+        try {
+            return normalizeSettings(JSON.parse(s.getItem(SETTINGS_KEY) || '{}'));
+        } catch (e) {
+            return normalizeSettings({});
+        }
+    }
+
+    function saveSettings(settings, storage) {
+        const s = getStorage(storage);
+        if (!s) return false;
+        try {
+            s.setItem(SETTINGS_KEY, JSON.stringify(normalizeSettings(settings)));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function clearSettings(storage) {
+        const s = getStorage(storage);
+        if (s) { try { s.removeItem(SETTINGS_KEY); } catch (e) {} }
+    }
+
     function remove(key, storage) {
         const s = getStorage(storage);
         if (!s) return;
@@ -277,8 +386,9 @@
         USER_PROMPT,
         SYSTEM_PROMPT,
         FORMAT_RULES,
-        MAX_PGN_CHARS,
         STORAGE_KEY,
+        SETTINGS_KEY,
+        DEFAULT_BASE_URL,
         buildMessages,
         parseHeader,
         parse,
@@ -287,6 +397,13 @@
         forMove,
         createSseDecoder,
         completionText,
+        normalizeSettings,
+        isConfigured,
+        buildRequest,
+        stream,
+        loadSettings,
+        saveSettings,
+        clearSettings,
         load,
         save,
         remove

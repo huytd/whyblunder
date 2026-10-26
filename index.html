@@ -4672,7 +4672,7 @@
         }
         .cc-export-opt input { accent-color: var(--cc-cta, var(--lic-blue)); }
 
-        /* --- Engine / AI commentary toggle in the coach bubble (GameCommentary, api/commentary.js) --- */
+        /* --- Engine / AI commentary toggle and LLM settings in the coach bubble (GameCommentary) --- */
         .gc-toggle {
             margin-left: auto;
             display: inline-flex;
@@ -4712,7 +4712,27 @@
             animation: gcPulse 1.2s ease-in-out infinite;
         }
         @keyframes gcPulse { 50% { opacity: 0.3; } }
-        .gc-error code { font-size: 0.8125rem; }
+        .gc-error { font-size: 0.8125rem; color: #b3261e; }
+        .gc-settings { display: flex; flex-direction: column; gap: 6px; }
+        .gc-settings label { display: flex; flex-direction: column; gap: 2px; font-size: 0.75rem; font-weight: 700; color: #5d5b58; }
+        .gc-settings input {
+            border: 1px solid #d8d6d3;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.8125rem;
+            color: #312e2b;
+            background: #fff;
+        }
+        .gc-settings input:focus { outline: none; border-color: #5c86ad; }
+        .gc-save {
+            border: 0;
+            border-radius: 6px;
+            padding: 4px 12px;
+            background: var(--cc-cta, #5d8f2c);
+            color: #fff;
+            font-size: 0.8125rem;
+            font-weight: 700;
+        }
 
         /* --- Sidebar (desktop only) --- */
         .cc-sidebar { display: none; }
@@ -6536,9 +6556,8 @@
             let currentAnalysisDepth = null;
             let exploredLines = []; // "Your Line" variations tried this session, kept for the PGN export
             let commentary = null; // { key, text, status: 'loading'|'streaming'|'done'|'error', error, model, attached, controller }
-            let commentaryConfigPromise = null;
             let commentaryRenderPending = false;
-            let commentaryConfig = null; // { enabled, model, autoStart } from GET api/commentary
+            let commentarySettingsOpen = false; // LLM settings form shown in the coach bubble
             let explainSource = 'engine'; // coach bubble: 'engine' analysis or 'ai' commentary
 
             // DOM elements
@@ -13460,12 +13479,11 @@
                 }
             }
 
-            // ---- Agadmator-style commentary (js/game-commentary.js + api/commentary.js) ----
-            // The annotated PGN (every engine line) goes to /api/commentary, which calls the
-            // OpenAI-compatible LLM configured by LLM_* environment variables and streams the
-            // answer back. The text is split per move and shown in the coach bubble when the
-            // Engine / AI toggle (only offered when the server has an LLM) is on AI.
-            const COMMENTARY_ENDPOINT = 'api/commentary';
+            // ---- Agadmator-style commentary (js/game-commentary.js) ----
+            // The browser sends the annotated PGN (every engine line) straight to the
+            // OpenAI-compatible API the player set up (base URL, model, key in localStorage)
+            // and streams the answer. The text is split per move and shown in the coach
+            // bubble when its Engine / AI toggle is on AI; the settings form lives there too.
             const EXPLAIN_SOURCE_KEY = 'whyblunder_explain_source'; // 'engine' | 'ai'
             try { if (localStorage.getItem(EXPLAIN_SOURCE_KEY) === 'ai') explainSource = 'ai'; } catch (e) {}
 
@@ -13473,24 +13491,12 @@
                 return srGameKey() || (typeof SelfReview !== 'undefined' && moves.length ? SelfReview.gameKey(moves) : '');
             }
 
-            function fetchCommentaryConfig() {
-                if (!commentaryConfigPromise) {
-                    commentaryConfigPromise = fetch(COMMENTARY_ENDPOINT, { headers: { Accept: 'application/json' } })
-                        .then(res => {
-                            const type = res.headers.get('content-type') || '';
-                            if (!res.ok || !type.includes('json')) return { enabled: false };
-                            return res.json();
-                        })
-                        .catch(() => ({ enabled: false }))
-                        .then(cfg => { commentaryConfig = cfg || { enabled: false }; return commentaryConfig; });
-                }
-                return commentaryConfigPromise;
+            function commentaryConfigured() {
+                return typeof GameCommentary !== 'undefined' && GameCommentary.isConfigured(GameCommentary.loadSettings());
             }
 
-            // The toggle (and the AI view) only exist when the server can write commentary.
             function commentaryAvailable() {
-                return typeof GameCommentary !== 'undefined' && Boolean(commentaryConfig && commentaryConfig.enabled)
-                    && moves.length > 0 && currentAppMode === 'analysis' && !isSelfReviewActive();
+                return typeof GameCommentary !== 'undefined' && moves.length > 0 && currentAppMode === 'analysis' && !isSelfReviewActive();
             }
 
             function explainSourceToggleHtml() {
@@ -13502,7 +13508,7 @@
             function setExplainSource(src) {
                 explainSource = src === 'ai' ? 'ai' : 'engine';
                 try { localStorage.setItem(EXPLAIN_SOURCE_KEY, explainSource); } catch (e) {}
-                if (explainSource === 'ai' && (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error')) {
+                if (explainSource === 'ai' && commentaryConfigured() && (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error')) {
                     startCommentary();
                 }
                 showMoveExplanation(currentMoveIndex);
@@ -13520,12 +13526,9 @@
                 }
             }
 
-            // After an analysis: write the commentary right away in AI mode (or with LLM_AUTOSTART).
+            // After an analysis in AI mode, write the commentary right away.
             function maybeAutoStartCommentary() {
-                if (typeof GameCommentary === 'undefined' || !moves.length || commentary || currentAppMode === 'coach') return;
-                fetchCommentaryConfig().then(cfg => {
-                    if (cfg && cfg.enabled && (cfg.autoStart || explainSource === 'ai') && !commentary) startCommentary();
-                });
+                if (!commentary && explainSource === 'ai' && currentAppMode !== 'coach' && moves.length && commentaryConfigured()) startCommentary();
             }
 
             function commentaryTextHtml(text) {
@@ -13540,15 +13543,32 @@
                 return `${m.move_number}${m.is_white ? '.' : '...'} ${m.move}`;
             }
 
+            // LLM settings, edited in the bubble and kept in this browser only.
+            function commentarySettingsHtml() {
+                const s = GameCommentary.loadSettings();
+                const configured = GameCommentary.isConfigured(s);
+                return `<form class="gc-settings" data-gc-settings autocomplete="off">
+                    <div class="gc-muted">An LLM of your choice writes the commentary from the annotated PGN. Any OpenAI-compatible API works. These settings stay in this browser, and the key is only sent to this URL.</div>
+                    <label>Base URL<input name="baseUrl" type="url" value="${escapeHtml(s.baseUrl)}" placeholder="${GameCommentary.DEFAULT_BASE_URL}" spellcheck="false"></label>
+                    <label>Model<input name="model" value="${escapeHtml(s.model)}" placeholder="e.g. gpt-4o-mini" spellcheck="false" required></label>
+                    <label>API key<input name="apiKey" type="password" value="${escapeHtml(s.apiKey)}" placeholder="Not needed for a local server" spellcheck="false" autocomplete="off"></label>
+                    <div class="gc-actions">
+                        <button type="submit" class="gc-save">${configured ? 'Save' : 'Save and write the commentary'}</button>
+                        ${configured ? '<button type="button" class="gc-link" data-gc-action="cancel-settings">Cancel</button><button type="button" class="gc-link" data-gc-action="clear-settings">Forget these settings</button>' : ''}
+                    </div>
+                </form>`;
+            }
+
             // Body of the coach bubble in AI mode for move `index` (-1 = start position).
             function commentaryBodyHtml(index) {
+                if (commentarySettingsOpen || !commentaryConfigured()) return commentarySettingsHtml();
                 const c = commentary && commentary.key === commentaryGameKey() ? commentary : null;
                 if (!c) return '<div class="gc-muted">Warming up the commentary…</div>';
                 const live = c.status === 'loading' || c.status === 'streaming';
                 const part = c.attached ? GameCommentary.forMove(c.attached, index, moves.length) : null;
                 let body = '';
                 if (c.status === 'error') {
-                    body = `<div class="gc-error">${c.error}</div>`;
+                    body = `<div class="gc-error">${escapeHtml(c.error)}</div>`;
                 } else if (part) {
                     if (part.continued) body += `<div class="gc-from">Continuing from ${escapeHtml(commentaryMoveLabel(part.start))}</div>`;
                     if (part.intro) body += commentaryTextHtml(part.intro);
@@ -13564,7 +13584,7 @@
                 const by = c.model ? `<span>by ${escapeHtml(c.model)}</span>` : '';
                 const actions = live
                     ? `<span class="gc-live">Writing</span>${by}<button type="button" class="gc-link" data-gc-action="stop">Stop</button>`
-                    : `${by}<button type="button" class="gc-link" data-gc-action="restart">${c.status === 'error' ? 'Try again' : 'Regenerate'}</button>`;
+                    : `${by}<button type="button" class="gc-link" data-gc-action="restart">${c.status === 'error' ? 'Try again' : 'Regenerate'}</button><button type="button" class="gc-link" data-gc-action="settings">AI settings</button>`;
                 return `${body}<div class="gc-actions">${actions}</div>`;
             }
 
@@ -13583,7 +13603,7 @@
             // Update the bubble body in place while text streams in (no full re-render).
             function renderCommentaryBody() {
                 commentaryRenderPending = false;
-                if (!moveExplanation || explainSource !== 'ai' || !commentaryAvailable()) return;
+                if (!moveExplanation || explainSource !== 'ai' || commentarySettingsOpen || !commentaryAvailable()) return;
                 const body = moveExplanation.querySelector('[data-gc-body]');
                 if (body) body.innerHTML = commentaryBodyHtml(currentMoveIndex);
             }
@@ -13594,10 +13614,10 @@
                 (window.requestAnimationFrame || setTimeout)(renderCommentaryBody);
             }
 
-            function failCommentary(state, html) {
+            function failCommentary(state, message) {
                 if (commentary !== state) return;
                 state.status = 'error';
-                state.error = html;
+                state.error = message;
                 state.controller = null;
                 scheduleCommentaryRender();
             }
@@ -13605,71 +13625,57 @@
             async function startCommentary() {
                 if (typeof GameCommentary === 'undefined' || !moves.length) return;
                 if (commentary && (commentary.status === 'loading' || commentary.status === 'streaming')) return;
-                const state = { key: commentaryGameKey(), text: '', status: 'loading', error: '', model: '', attached: null, controller: new AbortController() };
+                const settings = GameCommentary.loadSettings();
+                if (!GameCommentary.isConfigured(settings)) return;
+                const state = { key: commentaryGameKey(), text: '', status: 'loading', error: '', model: settings.model, attached: null, controller: new AbortController() };
                 commentary = state;
                 scheduleCommentaryRender();
 
-                const cfg = await fetchCommentaryConfig();
-                if (commentary !== state) return;
-                if (!cfg || !cfg.enabled) {
-                    return failCommentary(state, 'AI commentary is not configured on the server. Set <code>LLM_MODEL</code> and <code>LLM_API_KEY</code> (and <code>LLM_BASE_URL</code> for a non-OpenAI endpoint).');
-                }
-
-                let res;
+                let stopped = false;
                 try {
-                    res = await fetch(COMMENTARY_ENDPOINT, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ pgn: buildAnnotatedPgn('all') }),
-                        signal: state.controller.signal
+                    await GameCommentary.stream(settings, buildAnnotatedPgn('all'), {
+                        signal: state.controller.signal,
+                        onText: (text) => {
+                            state.text = text;
+                            state.status = 'streaming';
+                            state.attached = GameCommentary.attach(GameCommentary.parse(text), moves);
+                            if (commentary === state) scheduleCommentaryRender();
+                        }
                     });
                 } catch (e) {
-                    if (state.controller && state.controller.signal.aborted) return;
-                    return failCommentary(state, `Could not reach the commentary server: ${escapeHtml(e.message || String(e))}`);
-                }
-                if (!res.ok) {
-                    let msg = '';
-                    try { msg = (await res.json()).error || ''; } catch (e) {}
-                    return failCommentary(state, escapeHtml(msg || `The commentary server answered ${res.status}.`));
-                }
-
-                state.model = res.headers.get('X-Commentary-Model') || cfg.model || '';
-                state.status = 'streaming';
-                const decoder = new TextDecoder();
-                try {
-                    const reader = res.body.getReader();
-                    for (;;) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        state.text += decoder.decode(value, { stream: true });
-                        state.attached = GameCommentary.attach(GameCommentary.parse(state.text), moves);
-                        if (commentary === state) scheduleCommentaryRender();
-                    }
-                    state.text += decoder.decode();
-                } catch (e) {
-                    if (!state.controller || !state.controller.signal.aborted) {
-                        return failCommentary(state, `The commentary stream broke off: ${escapeHtml(e.message || String(e))}`);
-                    }
+                    stopped = state.controller && state.controller.signal.aborted;
+                    if (!stopped) return failCommentary(state, e.message || String(e));
                 }
                 if (commentary !== state) return;
 
-                const stopped = state.controller && state.controller.signal.aborted;
                 state.controller = null;
                 state.attached = GameCommentary.attach(GameCommentary.parse(state.text), moves);
                 const hasText = state.attached.intro || state.attached.sections.length || state.attached.outro;
-                if (state.attached.error && !hasText) {
-                    return failCommentary(state, escapeHtml(state.attached.error));
-                }
-                if (!hasText) {
-                    return failCommentary(state, stopped ? 'Commentary stopped.' : 'The model returned no commentary.');
-                }
+                if (!hasText) return failCommentary(state, stopped ? 'Commentary stopped.' : 'The model returned no commentary.');
                 state.status = 'done';
-                if (!stopped && !state.attached.error) GameCommentary.save(state.key, { text: state.text, model: state.model });
+                if (!stopped) GameCommentary.save(state.key, { text: state.text, model: state.model });
                 scheduleCommentaryRender();
             }
 
             function stopCommentary() {
                 if (commentary && commentary.controller) commentary.controller.abort();
+            }
+
+            function saveCommentarySettings(form) {
+                const data = new FormData(form);
+                const settings = { baseUrl: data.get('baseUrl'), model: data.get('model'), apiKey: data.get('apiKey') };
+                if (!GameCommentary.isConfigured(settings)) {
+                    const key = form.querySelector('[name="apiKey"]');
+                    if (key && !String(settings.apiKey || '').trim()) key.focus();
+                    return;
+                }
+                GameCommentary.saveSettings(settings);
+                commentarySettingsOpen = false;
+                if (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error') {
+                    commentary = null;
+                    startCommentary();
+                }
+                showMoveExplanation(currentMoveIndex);
             }
 
             function ccSyncSidebar() {
@@ -13754,17 +13760,29 @@
                         if (source) return setExplainSource(source.dataset.gcSource);
                         const action = e.target.closest('[data-gc-action]');
                         if (!action) return;
-                        if (action.dataset.gcAction === 'stop') stopCommentary();
-                        else if (action.dataset.gcAction === 'restart') {
+                        const act = action.dataset.gcAction;
+                        if (act === 'stop') stopCommentary();
+                        else if (act === 'restart') {
                             if (commentary && commentary.key) GameCommentary.remove(commentary.key);
                             commentary = null;
                             startCommentary();
+                            showMoveExplanation(currentMoveIndex);
+                        } else if (act === 'settings' || act === 'cancel-settings') {
+                            commentarySettingsOpen = act === 'settings';
+                            showMoveExplanation(currentMoveIndex);
+                        } else if (act === 'clear-settings') {
+                            GameCommentary.clearSettings();
+                            commentarySettingsOpen = false;
+                            showMoveExplanation(currentMoveIndex);
                         }
                     });
+                    moveExplanation.addEventListener('submit', (e) => {
+                        const form = e.target.closest('[data-gc-settings]');
+                        if (!form) return;
+                        e.preventDefault();
+                        saveCommentarySettings(form);
+                    });
                 }
-                fetchCommentaryConfig().then(cfg => {
-                    if (cfg && cfg.enabled && moves.length && currentAppMode === 'analysis') showMoveExplanation(currentMoveIndex);
-                });
 
                 const startReview = document.getElementById('ccStartReview');
                 if (startReview) {

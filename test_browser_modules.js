@@ -750,7 +750,7 @@ console.log("Testing PgnExport...");
 }
 console.log("✓ PgnExport passed!");
 
-// Agadmator-style commentary (LLM via api/commentary.js)
+// Agadmator-style commentary (direct LLM call from the browser)
 console.log("Testing GameCommentary...");
 {
     const GameCommentary = require('./js/game-commentary.js');
@@ -832,44 +832,52 @@ console.log("Testing GameCommentary...");
     GameCommentary.remove('g9', store);
     assert.strictEqual(GameCommentary.load('g9', store), null);
 
-    // Server config from environment variables
-    const { readConfig } = require('./api/commentary.js');
-    assert.strictEqual(readConfig({}).enabled, false, 'No model, no commentary');
-    assert.strictEqual(readConfig({ LLM_MODEL: 'm' }).enabled, false, 'The default (OpenAI) endpoint needs a key');
-    const cfg = readConfig({ LLM_MODEL: 'm', LLM_API_KEY: 'k', LLM_BASE_URL: 'https://x.test/v1/', LLM_TEMPERATURE: '0.5', LLM_EXTRA_HEADERS: '{"X-Title":"WhyBlunder"}' });
-    assert.strictEqual(cfg.enabled, true);
-    assert.strictEqual(cfg.baseUrl, 'https://x.test/v1');
-    assert.strictEqual(cfg.temperature, 0.5);
-    assert.strictEqual(cfg.maxTokens, null);
-    assert.deepStrictEqual(cfg.extraHeaders, { 'X-Title': 'WhyBlunder' });
-    assert.strictEqual(readConfig({ LLM_MODEL: 'llama3', LLM_BASE_URL: 'http://localhost:11434/v1' }).enabled, true, 'Local endpoints work without a key');
-    assert.strictEqual(readConfig({ OPENAI_MODEL: 'm', OPENAI_API_KEY: 'k' }).enabled, true, 'OPENAI_* variables are fallbacks');
+    // LLM settings (kept in the player's localStorage)
+    const llmStore = { data: {}, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
+    assert.strictEqual(GameCommentary.isConfigured(GameCommentary.loadSettings(llmStore)), false, 'No settings, no commentary');
+    assert.strictEqual(GameCommentary.isConfigured({ model: 'm' }), false, 'The default (OpenAI) endpoint needs a key');
+    assert.strictEqual(GameCommentary.isConfigured({ model: 'llama3', baseUrl: 'http://localhost:11434/v1' }), true, 'Local endpoints work without a key');
+    GameCommentary.saveSettings({ baseUrl: ' https://x.test/v1/chat/completions ', model: ' m ', apiKey: 'k' }, llmStore);
+    assert.deepStrictEqual(GameCommentary.loadSettings(llmStore), { baseUrl: 'https://x.test/v1', model: 'm', apiKey: 'k' });
+    const req = GameCommentary.buildRequest(GameCommentary.loadSettings(llmStore), '1. e4 *');
+    assert.strictEqual(req.url, 'https://x.test/v1/chat/completions');
+    assert.strictEqual(req.init.headers.Authorization, 'Bearer k');
+    const reqBody = JSON.parse(req.init.body);
+    assert.strictEqual(reqBody.model, 'm');
+    assert.strictEqual(reqBody.stream, true);
+    assert.ok(reqBody.messages[1].content.includes('1. e4 *'));
+    assert.ok(!('Authorization' in GameCommentary.buildRequest({ model: 'l', baseUrl: 'http://localhost:1234/v1' }, '').init.headers), 'No key, no Authorization header');
+    GameCommentary.clearSettings(llmStore);
+    assert.strictEqual(GameCommentary.loadSettings(llmStore).model, '');
 
     // index.html wiring
     assert.ok(indexHtml.includes('<script src="js/game-commentary.js"></script>'), 'game-commentary.js must be loaded');
-    assert.ok(indexHtml.includes("body: JSON.stringify({ pgn: buildAnnotatedPgn('all') })"), 'The commentary is built from the PGN with every engine line');
     assert.ok(indexHtml.includes('html += ccCoachLineHtml(move, false, { bodyHtml, footHtml, headExtraHtml: sourceToggle'), 'The commentary reuses the coach bubble, with the Engine / AI toggle in its head');
     assert.ok(indexHtml.includes('data-gc-source="${src}"'), 'The bubble toggles between engine analysis and AI commentary');
-    assert.ok(/function commentaryAvailable\(\) \{[\s\S]{0,200}commentaryConfig\.enabled/.test(indexHtml), 'The toggle only shows when the server has an LLM configured');
+    assert.ok(indexHtml.includes('<form class="gc-settings" data-gc-settings'), 'The LLM settings are edited in the bubble');
+    assert.ok(indexHtml.includes('await GameCommentary.stream(settings, buildAnnotatedPgn(\'all\')'), 'The browser calls the LLM directly');
     assert.ok(!indexHtml.includes('id="ccCommentaryBtn"') && !indexHtml.includes('data-commentary-card'), 'No separate commentary UI');
     assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'game-commentary.js'), 'utf8')), 'Commentary parsing must be deterministic');
 }
 console.log("✓ GameCommentary passed!");
 
-// api/commentary.js against a fake OpenAI-compatible server
+// GameCommentary.stream against a fake OpenAI-compatible server
 (async () => {
     const http = require('http');
-    const handler = require('./api/commentary.js');
-    const listen = (srv) => new Promise(resolve => srv.listen(0, '127.0.0.1', () => resolve(srv.address().port)));
+    const GameCommentary = require('./js/game-commentary.js');
     let seen = null;
     const upstream = http.createServer((req, res) => {
         let body = '';
         req.on('data', c => { body += c; });
         req.on('end', () => {
-            seen = { url: req.url, auth: req.headers.authorization, title: req.headers['x-title'], body: JSON.parse(body) };
+            seen = { url: req.url, auth: req.headers.authorization, body: JSON.parse(body) };
             if (seen.body.model === 'broken') {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
                 return res.end('{"error":{"message":"Invalid API key"}}');
+            }
+            if (seen.body.model === 'plain') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end('{"choices":[{"message":{"content":"@@ 1. e4\\nNo stream."}}]}');
             }
             res.writeHead(200, { 'Content-Type': 'text/event-stream' });
             res.write('data: {"choices":[{"delta":{"content":"Hello everyone\\n@@ 1. e4\\n"}}]}\n\n');
@@ -877,42 +885,26 @@ console.log("✓ GameCommentary passed!");
             res.end();
         });
     });
-    const upPort = await listen(upstream);
-    let env = { LLM_BASE_URL: `http://127.0.0.1:${upPort}/v1`, LLM_MODEL: 'test-model', LLM_API_KEY: 'secret', LLM_EXTRA_HEADERS: '{"X-Title":"WhyBlunder"}' };
-    const proxy = http.createServer((req, res) => { handler(req, res, env); });
-    const port = await listen(proxy);
-    const url = `http://127.0.0.1:${port}/api/commentary`;
+    const port = await new Promise(resolve => upstream.listen(0, '127.0.0.1', () => resolve(upstream.address().port)));
+    const settings = { baseUrl: `http://127.0.0.1:${port}/v1`, model: 'test-model', apiKey: 'secret' };
     try {
-        const info = await (await fetch(url)).json();
-        assert.deepStrictEqual(info, { enabled: true, model: 'test-model', autoStart: false }, 'GET reports the model, never the key');
-
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pgn: '1. e4 *' }) });
-        assert.strictEqual(res.status, 200);
-        assert.strictEqual(res.headers.get('x-commentary-model'), 'test-model');
-        assert.strictEqual(await res.text(), 'Hello everyone\n@@ 1. e4\nGood move.', 'The SSE stream comes back as plain text');
+        const updates = [];
+        const text = await GameCommentary.stream(settings, '1. e4 *', { onText: t => updates.push(t) });
+        assert.strictEqual(text, 'Hello everyone\n@@ 1. e4\nGood move.', 'The SSE stream is assembled');
+        assert.ok(updates.length >= 1 && updates[updates.length - 1] === text, 'onText gets the text so far');
         assert.strictEqual(seen.url, '/v1/chat/completions');
         assert.strictEqual(seen.auth, 'Bearer secret');
-        assert.strictEqual(seen.title, 'WhyBlunder');
         assert.strictEqual(seen.body.stream, true);
-        assert.ok(!('temperature' in seen.body), 'Temperature is only sent when configured');
-        assert.ok(seen.body.messages[1].content.includes('1. e4 *'));
 
-        assert.strictEqual((await fetch(url, { method: 'POST', body: '{}' })).status, 400, 'A PGN is required');
-
-        env = Object.assign({}, env, { LLM_MODEL: 'broken' });
-        const bad = await fetch(url, { method: 'POST', body: JSON.stringify({ pgn: '1. e4 *' }) });
-        assert.strictEqual(bad.status, 502);
-        assert.ok(/Invalid API key/.test((await bad.json()).error), 'Upstream errors are reported');
-
-        env = {};
-        assert.strictEqual((await fetch(url, { method: 'POST', body: JSON.stringify({ pgn: '1. e4 *' }) })).status, 503, 'Unconfigured server refuses');
-        console.log("✓ Commentary API proxy passed!");
+        assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'plain' }), '1. e4 *'), '@@ 1. e4\nNo stream.', 'Non-streaming answers work too');
+        await assert.rejects(GameCommentary.stream(Object.assign({}, settings, { model: 'broken' }), '1. e4 *'), /401: Invalid API key/, 'API errors are readable');
+        await assert.rejects(GameCommentary.stream({ baseUrl: 'http://127.0.0.1:1/v1', model: 'm' }, '1. e4 *'), /Could not reach .*CORS/, 'Unreachable endpoints mention CORS');
+        console.log("✓ GameCommentary.stream passed!");
     } finally {
-        proxy.close();
         upstream.close();
     }
 })().catch(err => {
-    console.error("Commentary API test error:", err);
+    console.error("GameCommentary.stream test error:", err);
     process.exit(1);
 });
 
