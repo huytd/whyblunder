@@ -750,7 +750,7 @@ console.log("Testing PgnExport...");
 }
 console.log("✓ PgnExport passed!");
 
-// Agadmator-style commentary (direct LLM call from the browser)
+// GothamChess-style commentary (direct LLM call from the browser)
 console.log("Testing GameCommentary...");
 {
     const GameCommentary = require('./js/game-commentary.js');
@@ -763,10 +763,14 @@ console.log("Testing GameCommentary...");
     const msgs = GameCommentary.buildMessages('[Event "x"]\n\n1. e4 e5 *');
     assert.strictEqual(msgs.length, 2);
     assert.strictEqual(msgs[0].role, 'system');
-    assert.ok(/Agadmator/.test(msgs[0].content));
-    assert.ok(msgs[1].content.startsWith(GameCommentary.USER_PROMPT), 'The user prompt asks for Agadmator-style commentary of the annotated PGN');
+    assert.ok(/GothamChess/.test(msgs[0].content) && /GothamChess/.test(GameCommentary.USER_PROMPT), 'The commentary is in the GothamChess style');
+    assert.ok(!/Agadmator/.test(JSON.stringify(msgs)), 'No trace of the old style');
+    assert.ok(/why the move is bad, why the suggested move is better/.test(GameCommentary.USER_PROMPT), 'The prompt asks for explanations');
+    assert.ok(/Never quote evaluation numbers/.test(msgs[0].content) && /"Stockfish evaluates"/.test(msgs[0].content), 'The model explains instead of reading out engine verdicts');
+    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v2', 'Old-style cached commentaries are not reused');
+    assert.ok(msgs[1].content.startsWith(GameCommentary.USER_PROMPT), 'The user prompt asks for GothamChess-style commentary of the annotated PGN');
     assert.ok(msgs[1].content.includes('1. e4 e5 *'), 'The PGN goes in the prompt');
-    assert.ok(/better line and the bad line/.test(msgs[1].content), 'The model is asked to go through the variations');
+    assert.ok(/go through the bad line and the better line and explain them/.test(msgs[1].content), 'The model is asked to go through the variations');
 
     assert.deepStrictEqual(GameCommentary.parseHeader('@@ 12... Nxd5'), { kind: 'move', number: 12, white: false, san: 'Nxd5' });
     assert.deepStrictEqual(GameCommentary.parseHeader('**@@ 3. Bc4**'), { kind: 'move', number: 3, white: true, san: 'Bc4' });

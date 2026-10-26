@@ -13566,7 +13566,7 @@
                 }
             }
 
-            // ---- Agadmator-style commentary (js/game-commentary.js) ----
+            // ---- GothamChess-style commentary (js/game-commentary.js) ----
             // The browser sends the annotated PGN (every engine line) straight to the
             // OpenAI-compatible API the player set up (base URL, model, key in localStorage)
             // and streams the answer. The text is split per move and shown in the coach
@@ -13589,7 +13589,7 @@
             function explainSourceToggleHtml() {
                 if (!commentaryAvailable()) return '';
                 const btn = (src, label, title) => `<button type="button" data-gc-source="${src}" class="${explainSource === src ? 'is-active' : ''}" aria-pressed="${explainSource === src}" title="${title}">${label}</button>`;
-                return `<span class="gc-toggle" role="group" aria-label="Explanation">${btn('engine', 'Engine', 'Engine analysis')}${btn('ai', 'AI', 'Agadmator-style AI commentary')}</span>`;
+                return `<span class="gc-toggle" role="group" aria-label="Explanation">${btn('engine', 'Engine', 'Engine analysis')}${btn('ai', 'AI', 'GothamChess-style AI commentary')}</span>`;
             }
 
             function setExplainSource(src) {

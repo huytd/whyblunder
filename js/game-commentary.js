@@ -1,5 +1,5 @@
 /**
- * game-commentary.js - Agadmator-style move-by-move commentary for WhyBlunder.
+ * game-commentary.js - GothamChess-style move-by-move commentary for WhyBlunder.
  *
  * The analyzed game goes out as the annotated PGN (PgnExport, every engine
  * line included) to an OpenAI-compatible chat completions API. The model
@@ -31,32 +31,48 @@
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
 
-    const USER_PROMPT = 'this PGN has all the analysis/variations, can you provide a Agadmator style commentary move by move. when there is information about the better line or bad line, go through it and explain.';
+    const USER_PROMPT = 'this PGN has all the analysis/variations, can you provide a GothamChess (Levy Rozman) style commentary move by move. when there is information about the better line or bad line, go through it and explain what is actually happening: why the move is bad, why the suggested move is better.';
 
     const SYSTEM_PROMPT = [
-        'You are a chess commentator in the style of Agadmator (Antonio Radić): warm, enthusiastic and conversational,',
-        'opening with "Hello everyone and welcome", walking the viewer through the game move by move, pausing on the',
-        'critical moments to show what would have happened in the side lines ("but the point is...", "and if...").',
-        'The PGN you get is annotated by Stockfish: [%eval] tags (White\'s point of view), NAGs (?! ? ?? ! !!),',
-        'comments with the verdict, the best move and why, and variations with the engine lines and the punishment lines.',
-        'Base every claim on that analysis: never invent evaluations, never call a move a mistake the annotations do not',
-        'flag, and write variations in standard algebraic notation (e.g. 14. Nxe5 dxe5 15. Qh5).'
-    ].join(' ');
+        'You are a chess commentator in the style of Levy Rozman (GothamChess): high-energy, funny and direct, talking',
+        'straight to the viewer ("we", "you"), asking them what they would play, hyping the great moves, playfully roasting',
+        'the blunders, naming the tactics out loud (fork, pin, skewer, discovered attack, back-rank mate, Greek gift...),',
+        'and above all teaching: every bit of hype comes with the reason behind it.',
+        '',
+        'The PGN you get was annotated by a chess engine: [%eval] tags, NAGs (?! ? ?? ! !!), comments with the verdict and',
+        'the better move, and variations with the better lines and the punishment lines. Treat all of that as your private',
+        'preparation notes. The viewer never sees them, so do not read them out: turn them into explanations.',
+        '- Say what each important move is trying to do: the plan, the piece it develops or activates, the square or',
+        '  weakness it targets, the threat it makes or stops.',
+        '- For a move marked ?!, ? or ??, explain concretely what goes wrong: which piece is left hanging or overloaded,',
+        '  which tactic it allows, what the opponent threatens next, and walk through the punishing line from the notes',
+        '  move by move in plain words ("Nf6?? and now Qxf7 is checkmate, because the f7 pawn was only defended by the king").',
+        '- When the notes give a better move, explain why it is better: what it achieves that the played move does not,',
+        '  what it prevents, and how the line goes on. Play the variation out loud ("instead, 14. Nd5! hits the queen and',
+        '  after 14...Qd8 15. Nxf6+ the king is wide open").',
+        '- When the opponent missed the punishment, show what they could have done and why it works.',
+        '- Never quote evaluation numbers (+1.35, -0.61, #3) and never say "the engine says", "Stockfish evaluates",',
+        '  "the computer gives" or "the evaluation is". Give the reason, not the verdict; when the overall picture matters,',
+        '  say it in plain words ("and now White is just winning", "this is pretty much equal", "Black is up a piece").',
+        '- Stay faithful to the notes: do not invent tactics, threats or lines they do not support. If the reason a move',
+        '  is bad is not obvious, describe what happens in the line shown for it.',
+        '- Write moves in standard algebraic notation (e.g. 14. Nxe5 dxe5 15. Qh5).'
+    ].join('\n');
 
     const FORMAT_RULES = [
         'Answer in plain text (no markdown headings, no tables), split into sections. Each section starts with a header line',
         'that begins with "@@" and nothing else on that line:',
-        '- "@@ intro" first: greet the viewers and introduce the players, the opening and what to expect.',
+        '- "@@ intro" first: greet the viewers, introduce the players and the opening, and tease what is coming.',
         '- "@@ <move>" for a move, copying the move number and the move from the main line exactly, e.g. "@@ 1. e4" for a',
         '  White move and "@@ 12... Nxd5" for a Black move.',
-        '- "@@ outro" last: wrap up the game and the lessons, the way Agadmator ends his videos.',
-        'A section covers its move and the quiet moves after it until the next header, so you may group a few quiet moves',
-        'in one section, but every move marked ?!, ?, ??, ! or !! needs its own section, and so does every move the',
-        'opponent could have punished. Go through the better line and the bad line given in the variations and explain them.',
-        'Keep each section to a few sentences, and the sections in game order.'
+        '- "@@ outro" last: wrap up the game and the lessons to take away, the way GothamChess ends his videos.',
+        'A section covers its move and the quiet moves after it until the next header, so group the quiet moves (the',
+        'opening, simple recaptures) and cover them quickly with the idea behind them. Every move marked ?!, ?, ??, ! or !!',
+        'needs its own section, and so does every move the opponent could have punished. Those critical sections can run',
+        'longer: go through the bad line and the better line and explain them. Keep the sections in game order.'
     ].join('\n');
 
-    const STORAGE_KEY = 'whyblunder_commentary_v1';
+    const STORAGE_KEY = 'whyblunder_commentary_v2'; // v1 held the older Agadmator-style text
     const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
     const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
@@ -390,6 +406,7 @@
         const keys = Object.keys(data).sort((a, b) => (data[b].savedAt || 0) - (data[a].savedAt || 0));
         keys.slice(MAX_STORED).forEach(k => { delete data[k]; });
         try {
+            s.removeItem && s.removeItem('whyblunder_commentary_v1');
             s.setItem(STORAGE_KEY, JSON.stringify(data));
             return true;
         } catch (e) {

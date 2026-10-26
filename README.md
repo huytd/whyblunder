@@ -116,13 +116,15 @@ After the review, **Export annotated PGN** in the Game Review panel (or the down
 
 The accuracy and the opening go in the opening comment. The export is pure and deterministic, and it runs in Node too (`PgnExport.build(moves, options)`).
 
-### 7. AI Commentary in the Style of Agadmator (optional, `js/game-commentary.js`)
+### 7. AI Commentary in the Style of GothamChess (optional, `js/game-commentary.js`)
 
-Once the analysis is done, the coach bubble above the move explanation has an **Engine / AI** toggle. On **AI**, the bubble shows a move-by-move commentary in the style of Agadmator instead of the engine's text. An LLM writes it from the annotated PGN with every engine line, using this prompt:
+Once the analysis is done, the coach bubble above the move explanation has an **Engine / AI** toggle. On **AI**, the bubble shows a move-by-move commentary in the style of GothamChess (Levy Rozman) instead of the engine's text. An LLM writes it from the annotated PGN with every engine line, using this prompt:
 
-> this PGN has all the analysis/variations, can you provide a Agadmator style commentary move by move. when there is information about the better line or bad line, go through it and explain.
+> this PGN has all the analysis/variations, can you provide a GothamChess (Levy Rozman) style commentary move by move. when there is information about the better line or bad line, go through it and explain what is actually happening: why the move is bad, why the suggested move is better.
 
-The text streams into the bubble as the model writes it. The start position shows the intro and the last move shows the wrap-up. Quiet moves show the passage they belong to ("Continuing from 12. Nxd5"). Commentaries are saved in `localStorage` (`whyblunder_commentary_v1`, the 8 most recent games). **Regenerate** asks for a new one.
+The engine's annotations are the model's private notes, not something to read out. It is told to explain what each important move is trying to do. For a mistake, it shows what goes wrong: the hanging piece, the tactic, the punishing line played out move by move. For a better move, it shows why it is better. It never quotes evaluation numbers or "Stockfish says", and when the overall picture matters it says it in plain words ("White is just winning"). It must not invent tactics the analysis doesn't support.
+
+The text streams into the bubble as the model writes it. The start position shows the intro and the last move shows the wrap-up. Quiet moves show the passage they belong to ("Continuing from 12. Nxd5"). Commentaries are saved in `localStorage` (`whyblunder_commentary_v2`, the 8 most recent games). **Regenerate** asks for a new one.
 
 There is still no backend: the browser calls the LLM directly. Set it up under **Settings → AI commentary** (the sidebar on desktop, the Options sheet on mobile) before you load a game, or switch the bubble to **AI** and fill in the form it shows. You need:
 
