@@ -776,9 +776,9 @@ console.log("Testing GameCommentary...");
     assert.ok(PgnExport.moveNotes(game, 0).comment.includes('[%eval 0.30]'), 'Quiet moves get notes too');
     assert.strictEqual(PgnExport.moveNotes(game, 7), null);
 
-    // One request per move: the whole PGN as context, then the move at hand
+    // One small request per move: the game header and the move's own facts (no whole-game PGN)
     const pgn = PgnExport.build(game, { gameInfo: info, lines: 'all' });
-    const ask = (index, previous) => GameCommentary.buildMoveMessages({ pgn, moves: game, index, gameInfo: info, previous });
+    const ask = (index, previous) => GameCommentary.buildMoveMessages({ moves: game, index, gameInfo: info, previous });
     const blunder = ask(5, [{ index: 4, text: 'The Wayward Queen!' }]);
     assert.strictEqual(blunder.length, 2);
     assert.strictEqual(blunder[0].role, 'system');
@@ -786,9 +786,15 @@ console.log("Testing GameCommentary...");
     assert.ok(/one move at a time/.test(blunder[0].content), 'The model knows it comments move by move');
     assert.ok(/Never quote evaluation numbers/.test(blunder[0].content) && /"Stockfish evaluates"/.test(blunder[0].content), 'The model explains instead of reading out engine verdicts');
     assert.ok(/no thinking out loud/.test(blunder[0].content), 'No meta-talk about the instructions');
-    const [context, task] = blunder[1].content.split('\n\n---\n\n');
-    assert.ok(context.includes(pgn.trim()), 'The whole annotated PGN is the context');
-    assert.strictEqual(ask(0)[1].content.split('\n\n---\n\n')[0], context, 'The context is the same for every move (cacheable prefix)');
+    const task = blunder[1].content;
+    assert.ok(task.startsWith('Game: White: Alice (1500), Black: Bob. Opening: Wayward Queen Attack.'), 'A short game header instead of the PGN');
+    assert.ok(!/PGN:/.test(task) && !task.includes('[Event'), 'No whole-game PGN in the request');
+    assert.ok(/"the engine notes"/.test(blunder[0].content) && /refer to them/.test(blunder[0].content), 'No "the engine notes that..."');
+    const withPgn = GameCommentary.buildMoveMessages({ pgn, moves: game, index: 5, gameInfo: info })[1].content;
+    assert.ok(withPgn.includes(pgn.trim()) && withPgn.includes('\n\n---\n\nGame: '), 'A PGN can still be passed as context');
+    // Later moves may not be analyzed yet: placeholders are enough
+    const partial = game.slice(0, 6).concat([{ move: 'Qxf7#', move_number: 4, is_white: true }]);
+    assert.ok(GameCommentary.buildMoveMessages({ moves: partial, index: 5, gameInfo: info })[1].content.includes('The board now shows 3... Nf6'), 'A move is commented on before the rest is analyzed');
     assert.ok(task.includes("The board now shows 3... Nf6, Black's move 3. Give the commentary for this move only."));
     assert.ok(task.includes('Moves so far: 1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6'), 'The moves so far, without the ?? glyphs');
     assert.ok(task.includes(`Position before the move (FEN): ${notes.fenBefore}`));
@@ -826,13 +832,34 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(GameCommentary.cleanText('**3. Qh5**\nThe queen', true), 'The queen');
     assert.strictEqual(GameCommentary.cleanText('The queen comes out', true), 'The queen comes out', 'Plain text streams straight away');
 
+    // linkMoves: the moves the model wrote, checked on the board
+    const example = "e5 stakes a central claim. 1...e6 would have set up a French-adjacent structure after 2.Nf3 d5 3.exd5 exd5 4.d4 Nf6 5.Bd3 c5 6.c3, while 1...c5 invites 2.Nf3 d6 3.Bb5+ Bd7 4.Bxd7+ Nxd7 5.O-O Ngf6 6.Nc3. White's 2.a3 can test it, but the pawn on e5 holds and Qh5 is far away. Ke4 is nonsense.";
+    const linked = GameCommentary.linkMoves(example, { moves: ['e4', 'e5', 'a3', 'Nc6'], index: 1 });
+    const moveSegs = linked.segments.filter(x => x.type === 'move');
+    assert.strictEqual(linked.segments.map(x => x.text).join(''), example, 'Segments cover the whole text');
+    assert.deepStrictEqual(moveSegs[0], { type: 'move', text: 'e5', line: 0, step: 0, gameIndex: 1 }, 'The move on screen is the game move');
+    const e6 = moveSegs.find(x => x.text === '1...e6');
+    assert.deepStrictEqual(linked.lines[e6.line].sans, ['e6', 'Nf3', 'd5', 'exd5', 'exd5', 'd4', 'Nf6', 'Bd3', 'c5', 'c3'], 'An alternative and its continuation form one line');
+    assert.strictEqual(linked.lines[e6.line].startFen, new Chess('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1').fen(), 'The line starts before the move on screen');
+    assert.strictEqual(moveSegs.find(x => x.text === '6.c3').step, 9);
+    const c5 = moveSegs.find(x => x.text === '1...c5');
+    assert.deepStrictEqual(linked.lines[c5.line].sans.slice(0, 3), ['c5', 'Nf3', 'd6'], 'A second alternative is its own line');
+    assert.strictEqual(moveSegs.find(x => x.text === '5.O-O').step, 7, 'Castling is a move');
+    assert.strictEqual(moveSegs.find(x => x.text === "2.a3").gameIndex, 2, 'A later game move points at the game');
+    assert.strictEqual(moveSegs.filter(x => x.text === 'e5').length, 1, '"the pawn on e5" is a square, not a move');
+    assert.ok(moveSegs.find(x => x.text === 'Qh5'), 'A bare piece move legal after the move on screen is linked');
+    assert.ok(!moveSegs.find(x => x.text === 'Ke4'), 'An illegal move stays text');
+    assert.deepStrictEqual(GameCommentary.linkMoves('No moves here.', { moves: ['e4'], index: 0 }).segments, [{ type: 'text', text: 'No moves here.' }]);
+    const introLinks = GameCommentary.linkMoves('Expect 1. e4 e5 2. Nf3 today.', { moves: ['e4', 'e5', 'Nf3'], index: -1 }).segments.filter(x => x.type === 'move');
+    assert.deepStrictEqual(introLinks.map(x => x.gameIndex), [0, 1, 2], 'From the start position too');
+
     // Safety-classifier verdicts are not commentary
     ['User Safety: safe', 'User Safety: safe\nResponse Safety: safe', '{"User Safety": "safe", "Response Safety": "safe"}', 'Safety: Safe\nCategories: None', 'unsafe\nS1', 'safe'].forEach(t =>
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), true, `Verdict: ${t}`));
     ['Safe and sound, White castles.', 'Nf6?? and the king is not safe at all.', 'The safest move here is Be2, and it keeps everything protected.', ''].forEach(t =>
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), false, `Commentary: ${t}`));
-    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(index, true, true, background\)/.test(indexHtml), 'A verdict is retried once, without context');
-    assert.ok(indexHtml.includes('if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(c.key, i);'), 'Saved verdicts are dropped');
+    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(c, index, true, true, background\)/.test(indexHtml), 'A verdict is retried once, without context');
+    assert.ok(indexHtml.includes('if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(key, i);'), 'Saved verdicts are dropped');
 
     // SSE decoding (split across chunks)
     const dec = GameCommentary.createSseDecoder();
@@ -886,13 +913,23 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Settings"'), 'Typing in the Settings menu does not close it');
     assert.ok(/function commitCommentarySettings\(settings\) \{[\s\S]{0,600}syncLlmSettingsForms\(\);/.test(indexHtml), 'The bubble form and the Settings menu share one save path');
     assert.ok(indexHtml.includes('await GameCommentary.stream(settings, messages, {'), 'The browser calls the LLM directly');
-    assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ pgn: c.pgn, moves, index, gameInfo: currentGameInfo || {}, previous })'), 'One request per move, with the annotated PGN as context');
-    assert.ok(indexHtml.includes("if (!c.pgn) c.pgn = buildAnnotatedPgn('all');"), 'The PGN context is built once per game (stable prefix)');
-    assert.ok(/function pumpCommentaryQueue\(\) \{[\s\S]{0,900}commentaryReadingOrder\(\)\.find\(i => !c\.entries\[i\]\)[\s\S]{0,260}requestMoveCommentary\(next, false, false, true\)/.test(indexHtml), 'The whole game is written ahead, in reading order, by one background request');
-    assert.ok(indexHtml.includes('if (next === undefined || commentaryLive(c.entries[next - 1])) return;'), 'The writer waits for the move before, whose text is context');
+    assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo, previous })'), 'One small request per move, no PGN');
+    assert.ok(!indexHtml.includes("buildAnnotatedPgn('all')"), 'The whole-game PGN is no longer sent');
+    assert.ok(/function pumpCommentaryQueue\(\) \{[\s\S]{0,900}commentaryReadingOrder\(c, onScreen\)\.find\(i => !c\.entries\[i\]\)[\s\S]{0,200}requestMoveCommentary\(c, next, false, false, true\)/.test(indexHtml), 'The whole game is written ahead, in order, by one background request');
+    assert.ok(indexHtml.includes('if (next === undefined || !commentaryReady(c, next) || commentaryLive(c.entries[next - 1])) return;'), 'The writer waits for the analysis of the move, and for the move before (its text is context)');
+    assert.ok(/function commentaryReady\(c, i\) \{\s*return i < 0 \|\| \(Boolean\(c\.ready\[i\]\) && \(i === 0 \|\| Boolean\(c\.ready\[i - 1\]\)\)\);/.test(indexHtml), 'A move is ready once it and the move before are analyzed');
+    // Live: the commentary starts while the engine analyzes
+    assert.ok(/browserDoctor\.analyzeGame\(pgn, onProgress, analysisDepth, null, \{\s*onStart: startLiveCommentary,\s*onMove: liveCommentaryMove\s*\}\)/.test(indexHtml), 'Analysis hands each move to the commentary as soon as it is analyzed');
+    assert.ok(/function resetCommentary\(\) \{[\s\S]{0,300}if \(commentary && commentary\.key === key\) \{\s*commentary\.live = false;/.test(indexHtml), 'The commentary written during the analysis is adopted, not restarted');
+    assert.ok(/catch \(error\) \{\s*stopLiveCommentary\(\);/.test(indexHtml), 'A failed or cancelled analysis stops the live commentary');
+    // Clickable moves
+    assert.ok(indexHtml.includes('GameCommentary.linkMoves(text, { moves: c.moves, index })') && indexHtml.includes('class="gc-move" data-gc-move'), 'Moves in the commentary are buttons');
+    assert.ok(/const moveBtn = e\.target\.closest\('\[data-gc-move\]'\);\s*if \(moveBtn\) return openCommentaryMove\(moveBtn\);/.test(indexHtml), 'Clicking a move opens it');
+    assert.ok(/function openCommentaryMove\(el\) \{\s*if \(el\.dataset\.gcGame !== undefined\) \{\s*goToMove/.test(indexHtml) && indexHtml.includes("jumpToVariationStep(currentMoveIndex, 'commentary',"), 'A game move goes to the game, another line opens in the line viewer');
+    assert.ok(indexHtml.includes("lt === 'commentary' ? 'Commentary Line'"), 'Commentary lines get their own badge');
     assert.ok(indexHtml.includes('for (let i = Math.max(-1, index - 3); i < index; i++) {'), 'Context is only the moves just before');
     assert.ok(/if \(entry\.status === 'error'\) c\.paused = true;\s*scheduleCommentaryRender\(\);\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Each finished move starts the next; an error pauses the writer');
-    assert.ok(/function maybeAutoStartCommentary\(\) \{\s*if \(commentaryActive\(\)\) pumpCommentaryQueue\(\);/.test(indexHtml), 'Writing starts as soon as the analysis is done, in AI mode');
+    assert.ok(/function maybeAutoStartCommentary\(\) \{\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Whatever is left is written once the analysis is done');
     assert.ok(!indexHtml.includes('id="ccCommentaryBtn"') && !indexHtml.includes('data-commentary-card'), 'No separate commentary UI');
     assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'game-commentary.js'), 'utf8')), 'Commentary parsing must be deterministic');
 }
@@ -1329,6 +1366,32 @@ assert(indexHtml.includes("prog.phase === 'threats'"), "progress text must cover
     assert(keyMove.analysis.why.threat && keyMove.analysis.why.threat.san === 'g6+', "threat must be attached to the key move");
     assert.strictEqual(quietMove.analysis.why.threat, null);
     console.log("✓ Why card markup & threat pass passed!");
+
+    // analyzeGame hooks: the game before any search, then each move as soon as it is analyzed
+    const hooked = Object.create(BrowserWhyBlunder.prototype);
+    hooked.isCancelled = false;
+    hooked.pool = {
+        size: 1,
+        init: async () => {},
+        evaluate: async (fen) => {
+            const m = new Chess(fen).moves({ verbose: true })[0];
+            const uci = m ? m.from + m.to + (m.promotion || '') : '';
+            return { bestMove: uci, lines: { 1: { cp: 20, pv: uci ? [uci] : [] } } };
+        }
+    };
+    const started = [];
+    const seenMoves = [];
+    const res = await hooked.analyzeGame('1. e4 e5 2. Nf3 *', null, 10, null, {
+        onStart: info => started.push(info),
+        onMove: (result, index) => { seenMoves.push([index, result.move]); throw new Error('a consumer bug must not break the analysis'); }
+    });
+    assert.strictEqual(started.length, 1);
+    assert.deepStrictEqual(started[0].sans, ['e4', 'e5', 'Nf3'], 'onStart gets the move list');
+    assert.ok(started[0].game_info && 'opening' in started[0].game_info, 'onStart gets the game info');
+    assert.deepStrictEqual(seenMoves.sort((a, b) => a[0] - b[0]), [[0, 'e4'], [1, 'e5'], [2, 'Nf3']], 'onMove fires once per move with its result');
+    assert.strictEqual(res.moves.length, 3, 'A throwing hook does not break the analysis');
+    const plain = await hooked.analyzeGame('1. e4 *', null, 10);
+    assert.strictEqual(plain.moves.length, 1, 'Hooks are optional');
 })().catch(e => { console.error('Why card test failed:', e); process.exit(1); });
 
 // -------------------------------------------------------------

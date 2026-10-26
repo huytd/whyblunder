@@ -384,10 +384,18 @@
          * @param {function} onProgress - callback({ ply, totalPlies, percentage, move, moveNum, isWhite, depth, workers })
          * @param {number} depth - Stockfish search depth (default 18)
          * @param {number} concurrency - Number of parallel workers (optional)
+         * @param {object} hooks - optional, for consumers that start work before the game is done:
+         *   onStart({ game_info, sans }) once the game is parsed, before any search;
+         *   onMove(moveResult, index) as soon as each ply's result is ready (any order). The threat
+         *   pass at the end may still add analysis.why.threat to key moments.
          * @returns {Promise<object>} Complete analysisData JSON
          */
-        async analyzeGame(pgnText, onProgress = null, depth = 18, concurrency = null) {
+        async analyzeGame(pgnText, onProgress = null, depth = 18, concurrency = null, hooks = null) {
             this.isCancelled = false;
+            const callHook = (name, ...args) => {
+                if (!hooks || typeof hooks[name] !== 'function') return;
+                try { hooks[name](...args); } catch (e) { /* a consumer's error never breaks the analysis */ }
+            };
 
             if (concurrency && this.pool.size !== concurrency) {
                 this.pool.terminateAll();
@@ -433,6 +441,7 @@
             if (totalPlies === 0) {
                 return analysisData;
             }
+            callHook('onStart', { game_info: analysisData.game_info, sans: sanMoves.slice() });
 
             // Pre-calculate all board states and FENs sequentially
             const plyContexts = [];
@@ -684,7 +693,7 @@
                     });
                 }
 
-                return {
+                const result = {
                     move_number: moveNum,
                     ply: ply + 1,
                     move: moveObj.san,
@@ -715,6 +724,8 @@
                         why: diag ? diag.why : null
                     }
                 };
+                callHook('onMove', result, ply);
+                return result;
             });
 
             const moveResults = await Promise.all(plyPromises);
