@@ -116,6 +116,28 @@ After the review, **Export annotated PGN** in the Game Review panel (or the down
 
 The accuracy and the opening go in the opening comment. The export is pure and deterministic, and it runs in Node too (`PgnExport.build(moves, options)`).
 
+### 7. AI Commentary in the Style of Agadmator (optional, `js/game-commentary.js`, `api/commentary.js`)
+
+Once the analysis is done, the coach bubble above the move explanation gets an **Engine / AI** toggle. On **AI**, the bubble shows a move-by-move commentary in the style of Agadmator instead of the engine's text. An LLM writes it from the annotated PGN with every engine line, using this prompt:
+
+> this PGN has all the analysis/variations, can you provide a Agadmator style commentary move by move. when there is information about the better line or bad line, go through it and explain.
+
+The text streams into the bubble as the model writes it. The start position shows the intro and the last move shows the wrap-up. Quiet moves show the passage they belong to ("Continuing from 12. Nxd5"). Commentaries are saved in `localStorage` (`whyblunder_commentary_v1`, the 8 most recent games). **Regenerate** asks for a new one.
+
+This is the one feature that needs a server, because the API key must stay out of the browser. `api/commentary.js` builds the prompt and calls any OpenAI-compatible `/chat/completions` endpoint: OpenAI, OpenRouter, Groq, a local Ollama or LM Studio, and so on. It runs as a Vercel function, or locally through `node serve.js`. Configure it with environment variables (see `.env.example`):
+
+| Variable | Meaning |
+| :--- | :--- |
+| `LLM_BASE_URL` | API base URL, default `https://api.openai.com/v1` (`/chat/completions` is appended) |
+| `LLM_MODEL` | Model name (required) |
+| `LLM_API_KEY` | Bearer token (optional when `LLM_BASE_URL` points at a local server) |
+| `LLM_TEMPERATURE`, `LLM_MAX_TOKENS` | Optional sampling settings, sent only when set |
+| `LLM_TIMEOUT_MS` | Upstream timeout, default 280000 |
+| `LLM_EXTRA_HEADERS` | Optional JSON object of extra headers (e.g. OpenRouter's `HTTP-Referer`) |
+| `LLM_AUTOSTART` | `1` writes the commentary as soon as an analysis finishes, even in Engine mode |
+
+`OPENAI_BASE_URL`, `OPENAI_MODEL` and `OPENAI_API_KEY` work as fallbacks. If the endpoint is not configured, or the app is served by a plain static server, the toggle does not appear and everything else works as before.
+
 ---
 
 ## Architectural Trade-offs
@@ -145,6 +167,15 @@ npx serve .
 ```
 
 Open `http://localhost:3030` in a browser supporting WebAssembly and Web Workers.
+
+For the AI commentary, use the bundled zero-dependency server instead. It serves the same files plus `/api/commentary`, and it reads a `.env` file if there is one (it never serves dotfiles):
+
+```bash
+cp .env.example .env   # then fill in LLM_MODEL and LLM_API_KEY
+node serve.js          # http://localhost:3030 (PORT=... to change)
+```
+
+On Vercel, set the same variables in the project settings; `api/commentary.js` is picked up as a serverless function.
 
 ### 2. Run Test Suite
 

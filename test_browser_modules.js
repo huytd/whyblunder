@@ -750,6 +750,172 @@ console.log("Testing PgnExport...");
 }
 console.log("✓ PgnExport passed!");
 
+// Agadmator-style commentary (LLM via api/commentary.js)
+console.log("Testing GameCommentary...");
+{
+    const GameCommentary = require('./js/game-commentary.js');
+    const game = [
+        { move_number: 1, is_white: true, move: 'e4' }, { move_number: 1, is_white: false, move: 'e5' },
+        { move_number: 2, is_white: true, move: 'Nf3' }, { move_number: 2, is_white: false, move: 'Nc6' },
+        { move_number: 3, is_white: true, move: 'Bc4' }, { move_number: 3, is_white: false, move: 'Nd4?' }
+    ];
+
+    const msgs = GameCommentary.buildMessages('[Event "x"]\n\n1. e4 e5 *');
+    assert.strictEqual(msgs.length, 2);
+    assert.strictEqual(msgs[0].role, 'system');
+    assert.ok(/Agadmator/.test(msgs[0].content));
+    assert.ok(msgs[1].content.startsWith(GameCommentary.USER_PROMPT), 'The user prompt asks for Agadmator-style commentary of the annotated PGN');
+    assert.ok(msgs[1].content.includes('1. e4 e5 *'), 'The PGN goes in the prompt');
+    assert.ok(/better line and the bad line/.test(msgs[1].content), 'The model is asked to go through the variations');
+
+    assert.deepStrictEqual(GameCommentary.parseHeader('@@ 12... Nxd5'), { kind: 'move', number: 12, white: false, san: 'Nxd5' });
+    assert.deepStrictEqual(GameCommentary.parseHeader('**@@ 3. Bc4**'), { kind: 'move', number: 3, white: true, san: 'Bc4' });
+    assert.deepStrictEqual(GameCommentary.parseHeader('@@ 3 ... Nd4?'), { kind: 'move', number: 3, white: false, san: 'Nd4?' });
+    assert.deepStrictEqual(GameCommentary.parseHeader('@@ Intro'), { kind: 'intro' });
+    assert.strictEqual(GameCommentary.parseHeader('Then 12. Nxd5 wins.'), null);
+
+    const text = [
+        'Hello everyone and welcome!',
+        '@@ 1. e4',
+        'King pawn.',
+        '@@ 2... Nc6',
+        'Quiet development.',
+        '@@ 2... Nc6', // duplicate header is folded into the previous section
+        'More.',
+        '@@ 9. Qh5', // not a move of this game
+        'Lost words.',
+        '@@ 3... Nd4?',
+        'The point is **Nxd4** exd4 and White is better.',
+        '@@ outro',
+        'Thanks for watching.'
+    ].join('\n');
+    const parsed = GameCommentary.parse(text);
+    assert.strictEqual(parsed.intro, 'Hello everyone and welcome!', 'Text before the first header is the intro');
+    assert.strictEqual(parsed.outro, 'Thanks for watching.');
+    const att = GameCommentary.attach(parsed, game);
+    assert.deepStrictEqual(att.sections.map(s => s.index), [0, 3, 5]);
+    assert.ok(att.sections[1].text.includes('More.') && att.sections[1].text.includes('Lost words.'), 'Stray sections are kept with the previous one');
+
+    assert.strictEqual(GameCommentary.forMove(att, -1, game.length).intro, 'Hello everyone and welcome!');
+    const atNf3 = GameCommentary.forMove(att, 2, game.length);
+    assert.strictEqual(atNf3.start, 0);
+    assert.strictEqual(atNf3.continued, true, 'Quiet moves show the section they belong to');
+    const last = GameCommentary.forMove(att, 5, game.length);
+    assert.strictEqual(last.continued, false);
+    assert.strictEqual(last.outro, 'Thanks for watching.', 'The last move carries the outro');
+
+    // Streaming: a partial answer already maps to moves.
+    const partial = GameCommentary.attach(GameCommentary.parse('Hi!\n@@ 1. e4\nKing pa'), game);
+    assert.strictEqual(GameCommentary.forMove(partial, 1, game.length).text, 'King pa');
+    assert.strictEqual(GameCommentary.forMove(GameCommentary.attach(GameCommentary.parse(''), game), 0, game.length), null);
+
+    // Wrong side in the header: the SAN decides.
+    const swapped = GameCommentary.attach(GameCommentary.parse('@@ 1. e5\nBlack replies.'), game);
+    assert.strictEqual(swapped.sections[0].index, 1);
+
+    // SSE decoding (split across chunks)
+    const dec = GameCommentary.createSseDecoder();
+    let out = dec.push('data: {"choices":[{"delta":{"content":"Hel"}}]}\n\ndata: {"choices":[{"de');
+    out += dec.push('lta":{"content":"lo"}}]}\n\ndata: {"choices":[{"delta":{"role":"assistant"}}]}\n\n: keep-alive\n');
+    out += dec.push('data: [DONE]\n\n');
+    out += dec.end();
+    assert.strictEqual(out, 'Hello');
+    assert.strictEqual(dec.done, true);
+    assert.throws(() => GameCommentary.createSseDecoder().push('data: {"error":{"message":"quota"}}\n'), /quota/);
+    assert.strictEqual(GameCommentary.completionText({ choices: [{ message: { content: 'Hi' } }] }), 'Hi');
+
+    // Storage keeps the most recent games
+    const store = { data: {}, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; } };
+    for (let i = 0; i < 10; i++) GameCommentary.save('g' + i, { text: 't' + i, savedAt: 1000 + i }, store);
+    assert.strictEqual(GameCommentary.load('g9', store).text, 't9');
+    assert.strictEqual(GameCommentary.load('g0', store), null, 'Old commentaries are evicted');
+    GameCommentary.remove('g9', store);
+    assert.strictEqual(GameCommentary.load('g9', store), null);
+
+    // Server config from environment variables
+    const { readConfig } = require('./api/commentary.js');
+    assert.strictEqual(readConfig({}).enabled, false, 'No model, no commentary');
+    assert.strictEqual(readConfig({ LLM_MODEL: 'm' }).enabled, false, 'The default (OpenAI) endpoint needs a key');
+    const cfg = readConfig({ LLM_MODEL: 'm', LLM_API_KEY: 'k', LLM_BASE_URL: 'https://x.test/v1/', LLM_TEMPERATURE: '0.5', LLM_EXTRA_HEADERS: '{"X-Title":"WhyBlunder"}' });
+    assert.strictEqual(cfg.enabled, true);
+    assert.strictEqual(cfg.baseUrl, 'https://x.test/v1');
+    assert.strictEqual(cfg.temperature, 0.5);
+    assert.strictEqual(cfg.maxTokens, null);
+    assert.deepStrictEqual(cfg.extraHeaders, { 'X-Title': 'WhyBlunder' });
+    assert.strictEqual(readConfig({ LLM_MODEL: 'llama3', LLM_BASE_URL: 'http://localhost:11434/v1' }).enabled, true, 'Local endpoints work without a key');
+    assert.strictEqual(readConfig({ OPENAI_MODEL: 'm', OPENAI_API_KEY: 'k' }).enabled, true, 'OPENAI_* variables are fallbacks');
+
+    // index.html wiring
+    assert.ok(indexHtml.includes('<script src="js/game-commentary.js"></script>'), 'game-commentary.js must be loaded');
+    assert.ok(indexHtml.includes("body: JSON.stringify({ pgn: buildAnnotatedPgn('all') })"), 'The commentary is built from the PGN with every engine line');
+    assert.ok(indexHtml.includes('html += ccCoachLineHtml(move, false, { bodyHtml, footHtml, headExtraHtml: sourceToggle'), 'The commentary reuses the coach bubble, with the Engine / AI toggle in its head');
+    assert.ok(indexHtml.includes('data-gc-source="${src}"'), 'The bubble toggles between engine analysis and AI commentary');
+    assert.ok(/function commentaryAvailable\(\) \{[\s\S]{0,200}commentaryConfig\.enabled/.test(indexHtml), 'The toggle only shows when the server has an LLM configured');
+    assert.ok(!indexHtml.includes('id="ccCommentaryBtn"') && !indexHtml.includes('data-commentary-card'), 'No separate commentary UI');
+    assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'game-commentary.js'), 'utf8')), 'Commentary parsing must be deterministic');
+}
+console.log("✓ GameCommentary passed!");
+
+// api/commentary.js against a fake OpenAI-compatible server
+(async () => {
+    const http = require('http');
+    const handler = require('./api/commentary.js');
+    const listen = (srv) => new Promise(resolve => srv.listen(0, '127.0.0.1', () => resolve(srv.address().port)));
+    let seen = null;
+    const upstream = http.createServer((req, res) => {
+        let body = '';
+        req.on('data', c => { body += c; });
+        req.on('end', () => {
+            seen = { url: req.url, auth: req.headers.authorization, title: req.headers['x-title'], body: JSON.parse(body) };
+            if (seen.body.model === 'broken') {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end('{"error":{"message":"Invalid API key"}}');
+            }
+            res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+            res.write('data: {"choices":[{"delta":{"content":"Hello everyone\\n@@ 1. e4\\n"}}]}\n\n');
+            res.write('data: {"choices":[{"delta":{"content":"Good move."}}]}\n\ndata: [DONE]\n\n');
+            res.end();
+        });
+    });
+    const upPort = await listen(upstream);
+    let env = { LLM_BASE_URL: `http://127.0.0.1:${upPort}/v1`, LLM_MODEL: 'test-model', LLM_API_KEY: 'secret', LLM_EXTRA_HEADERS: '{"X-Title":"WhyBlunder"}' };
+    const proxy = http.createServer((req, res) => { handler(req, res, env); });
+    const port = await listen(proxy);
+    const url = `http://127.0.0.1:${port}/api/commentary`;
+    try {
+        const info = await (await fetch(url)).json();
+        assert.deepStrictEqual(info, { enabled: true, model: 'test-model', autoStart: false }, 'GET reports the model, never the key');
+
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pgn: '1. e4 *' }) });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.headers.get('x-commentary-model'), 'test-model');
+        assert.strictEqual(await res.text(), 'Hello everyone\n@@ 1. e4\nGood move.', 'The SSE stream comes back as plain text');
+        assert.strictEqual(seen.url, '/v1/chat/completions');
+        assert.strictEqual(seen.auth, 'Bearer secret');
+        assert.strictEqual(seen.title, 'WhyBlunder');
+        assert.strictEqual(seen.body.stream, true);
+        assert.ok(!('temperature' in seen.body), 'Temperature is only sent when configured');
+        assert.ok(seen.body.messages[1].content.includes('1. e4 *'));
+
+        assert.strictEqual((await fetch(url, { method: 'POST', body: '{}' })).status, 400, 'A PGN is required');
+
+        env = Object.assign({}, env, { LLM_MODEL: 'broken' });
+        const bad = await fetch(url, { method: 'POST', body: JSON.stringify({ pgn: '1. e4 *' }) });
+        assert.strictEqual(bad.status, 502);
+        assert.ok(/Invalid API key/.test((await bad.json()).error), 'Upstream errors are reported');
+
+        env = {};
+        assert.strictEqual((await fetch(url, { method: 'POST', body: JSON.stringify({ pgn: '1. e4 *' }) })).status, 503, 'Unconfigured server refuses');
+        console.log("✓ Commentary API proxy passed!");
+    } finally {
+        proxy.close();
+        upstream.close();
+    }
+})().catch(err => {
+    console.error("Commentary API test error:", err);
+    process.exit(1);
+});
+
 // Game Review accuracy helpers (chess.com-style UI)
 console.log("Testing Game Review accuracy helpers...");
 {

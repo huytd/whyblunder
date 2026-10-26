@@ -28,6 +28,8 @@ node test_diagnostics.js
 
 # 3. Start local development server
 python3 -m http.server 3030
+# Or, with the AI commentary endpoint (reads LLM_* env vars / .env):
+node serve.js
 # Or: npx serve .
 # Then open http://localhost:3030 in browser
 ```
@@ -46,6 +48,10 @@ whyblunder/
 ├── index.html                 # ~8k lines: Complete HTML, CSS theme, and main UI logic
 ├── test_browser_modules.js    # ~2k lines: Node test harness (modules + index.html assertions)
 ├── test_diagnostics.js        # Engine-free regression corpus (36 fixtures) for diagnostics
+├── serve.js                   # Optional zero-dep dev server: static files + /api/commentary, reads .env
+├── .env.example               # LLM_* variables for the AI commentary
+├── api/
+│   └── commentary.js          # Vercel function: OpenAI-compatible LLM proxy for the AI commentary (key stays server-side)
 ├── README.md                  # Public documentation & architecture overview
 ├── AGENTS.md                  # This file (internal agent onboarding & invariants)
 ├── docs/
@@ -60,6 +66,7 @@ whyblunder/
 │   ├── opening-detector.js    # Opening book matching & ECO classification
 │   ├── self-review.js         # Self review: per-phase critical moments, answers vs engine
 │   ├── pgn-export.js          # Annotated PGN export ([%eval], NAGs, comments, engine/your lines)
+│   ├── game-commentary.js     # AI commentary: prompt, "@@ <move>" section parser, SSE decoder, localStorage cache
 │   ├── stockfish.wasm.js      # Stockfish WASM loader / web worker entry
 │   ├── stockfish.wasm         # Stockfish compiled WebAssembly binary
 │   ├── stockfish.js           # asm.js fallback engine for environments without WASM
@@ -229,6 +236,7 @@ Any changes to diagnostic fields must be **additive** (e.g. `evidence`, `confide
 - **Explore Mode (analysis)**: Dragging a legal move on the board in analysis mode plays it from the shown position. If it matches the game's next move (or the next move of the line on screen) it simply steps forward; otherwise it starts or branches a `lineType: 'explore'` variation ("Your Line") that reuses the variation banner (`#variationBanner`, ←/→/Home/End, Return/Space/Esc back to the game). `#exploreLineRow` shows the line and a depth-14 read from a dedicated `StockfishWorker` (eval, quality of the move, engine's preferred move, best reply), cached per FEN. Promotions auto-queen.
 - **Self Review (analysis)**: After analysis (all three load paths call `maybeStartSelfReview()`), `#selfReviewPanel` walks the player through each phase (plan → critical moments → end-of-phase evaluation) before any engine verdict is shown. While `body.self-review-active` is set, the eval bar, engine move list and review summary are hidden. The panel has its own spoiler-free move list (`#srMovesList`, a single scrolling line above Back/Next; ←/→ and the ‹ › buttons step through positions), and clicking a critical move opens its questions. A moment left without both answers is flagged "Need review" (`SelfReview.momentStatus`), and Next into a later phase or the comparison is blocked until earlier moments are answered (`SelfReview.stepBlockers`). The list always highlights the last move on the board (`srListIndex()` = `srCursor()`), and at a moment the move under review gets a dashed "to play" outline. The board is driven by `srShowBoard()` (blue arrow = move played, purple = the player's suggestion, dragged on the board). `SelfReview.buildPlan/compare` (`js/self-review.js`) are pure and deterministic. Answers persist in `localStorage` (`whyblunder_self_review_v1`, keyed by `SelfReview.gameKey(moves)`) and show up as a "Your review" block in the move explanation. Once a review exists, a "Back to your self review" bar (`srBackBarHtml()`) heads the move explanation in every theme and on mobile; reopening goes straight to the comparison, and "Open engine analysis" returns to the move the player was on (`selfReview.returnTo`). `whyblunder_self_review_pref = 'skip'` skips the gate.
 - **Annotated PGN Export**: `PgnExport.build(moves, options)` (`js/pgn-export.js`, pure and deterministic) writes `[%eval]` tags, quality NAGs, a comment per move (verdict, best move, `why.bluf` text, threat) and engine lines as variations: the `why.alternatives` that beat an inaccuracy/mistake/miss/blunder (`principal_variation`/`best_move` for older cache entries), plus the punishment line after the reply when the opponent missed it. `lines: 'all'` (the `#ccExportAllLines` checkbox) adds alternatives for every move. The UI passes the player's explored lines (`exploredLines`, filled by `rememberExploredLine()` in `startExploreLine()`, session only, reset in `preprocessMoveData()`) and self-review answers (`srMoveNoteText()`) as `extraLines`/`notes`. Entry points: `#ccExportPgn`/`#ccCopyPgn` in the Game Review footer (`#ccExport`) and `#btnMovesExportPgn` in the Moves header, both hidden until a game is analyzed.
+- **AI Commentary (Agadmator style)**: Optional, the only server-side piece. `api/commentary.js` (Vercel function, also mounted by `node serve.js`) reads `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` (+ `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_MS`, `LLM_EXTRA_HEADERS`, `LLM_AUTOSTART`; `OPENAI_*` fallbacks). `GET` reports `{ enabled, model, autoStart }` and never the key. `POST { pgn }` builds the prompt server-side (`GameCommentary.buildMessages`, so the endpoint is not a generic chat relay), calls `/chat/completions` with `stream: true` and streams plain text back. The browser sends `buildAnnotatedPgn('all')`. The model answers in sections headed `@@ intro`, `@@ 12. Nxd5` / `@@ 12... Nxd5`, `@@ outro`. `GameCommentary.parse/attach/forMove` map them to moves; a section covers the quiet moves after it. There is no separate panel: the coach bubble gets an Engine / AI toggle (`explainSourceToggleHtml()`, `[data-gc-source]`, saved as `whyblunder_explain_source`). It appears only when `GET api/commentary` says `enabled`, so static hosting sees no change. In AI mode the bubble body is `[data-gc-body]`, updated in place while streaming (`renderCommentaryBody()`), and the start position shows the intro (`commentaryIntroHtml()`). Results are cached in `whyblunder_commentary_v1` (8 games), keyed by `SelfReview.gameKey(moves)`, and reset per game in `preprocessMoveData()`. The commentary is LLM text, so it is exempt from the determinism invariant; the parsing is deterministic.
 - **Responsive Layout**: Dedicated mobile toolbar (`.mobile-nav-toolbar`), bottom capsule navigation (`.mobile-nav-capsule`), swipeable ticker (`.mobile-move-ticker`), and offcanvas move list (`.mobile-moves-offcanvas`).
 
 ---
