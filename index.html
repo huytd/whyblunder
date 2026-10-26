@@ -6642,7 +6642,7 @@
             let currentGameInfo = null;
             let currentAnalysisDepth = null;
             let exploredLines = []; // "Your Line" variations tried this session, kept for the PGN export
-            let commentary = null; // { key, text, status: 'loading'|'streaming'|'done'|'error', error, model, attached, controller }
+            let commentary = null; // { key, model, pgn, entries: { [moveIndex]: { text, status, ... } } }, see commentaryState()
             let commentaryRenderPending = false;
             let commentarySettingsOpen = false; // LLM settings form shown in the coach bubble
             let explainSource = 'engine'; // coach bubble: 'engine' analysis or 'ai' commentary
@@ -13567,11 +13567,15 @@
             }
 
             // ---- GothamChess-style commentary (js/game-commentary.js) ----
-            // The browser sends the annotated PGN (every engine line) straight to the
-            // OpenAI-compatible API the player set up (base URL, model, key in localStorage)
-            // and streams the answer. The text is split per move and shown in the coach
-            // bubble when its Engine / AI toggle is on AI; the settings form lives there too.
+            // Written one move at a time: each request sends the whole annotated PGN as
+            // context (the same text for every move of a game, so APIs with prompt caching
+            // pay for it once) and asks for the move on the board, with its engine notes
+            // and what was said about the previous moves. The move on screen goes first;
+            // the next one is then prefetched so stepping through the game stays smooth.
+            // Shown in the coach bubble when its Engine / AI toggle is on AI.
             const EXPLAIN_SOURCE_KEY = 'whyblunder_explain_source'; // 'engine' | 'ai'
+            const COMMENTARY_MAX_ACTIVE = 2;  // requests in flight at once (move on screen + next)
+            const COMMENTARY_DWELL_MS = 250;  // skimming through moves does not fire a request per move
             try { if (localStorage.getItem(EXPLAIN_SOURCE_KEY) === 'ai') explainSource = 'ai'; } catch (e) {}
 
             function commentaryGameKey() {
@@ -13586,6 +13590,10 @@
                 return typeof GameCommentary !== 'undefined' && moves.length > 0 && currentAppMode === 'analysis' && !isSelfReviewActive();
             }
 
+            function commentaryActive() {
+                return explainSource === 'ai' && commentaryAvailable() && commentaryConfigured();
+            }
+
             function explainSourceToggleHtml() {
                 if (!commentaryAvailable()) return '';
                 const btn = (src, label, title) => `<button type="button" data-gc-source="${src}" class="${explainSource === src ? 'is-active' : ''}" aria-pressed="${explainSource === src}" title="${title}">${label}</button>`;
@@ -13596,27 +13604,33 @@
                 explainSource = src === 'ai' ? 'ai' : 'engine';
                 try { localStorage.setItem(EXPLAIN_SOURCE_KEY, explainSource); } catch (e) {}
                 syncLlmSettingsForms();
-                if (explainSource === 'ai' && commentaryConfigured() && (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error')) {
-                    startCommentary();
-                }
                 showMoveExplanation(currentMoveIndex);
             }
 
-            function resetCommentary() {
-                if (commentary && commentary.controller) commentary.controller.abort();
-                commentary = null;
-                if (typeof GameCommentary === 'undefined' || !moves.length) return;
+            // The commentary of the loaded game: one entry per move (-1 = intro).
+            // entry: { text, status: 'loading'|'streaming'|'done'|'stopped'|'error', error, thinking, startedAt, controller }
+            function commentaryState() {
                 const key = commentaryGameKey();
-                const saved = key ? GameCommentary.load(key) : null;
+                if (!commentary || commentary.key !== key) commentary = { key, model: '', pgn: '', entries: {} };
+                return commentary;
+            }
+
+            function resetCommentary() {
+                if (commentary) Object.values(commentary.entries).forEach(e => { if (e.controller) e.controller.abort(); });
+                commentary = null;
+                clearTimeout(commentaryDwellTimer);
+                if (typeof GameCommentary === 'undefined' || !moves.length) return;
+                const c = commentaryState();
+                const saved = c.key ? GameCommentary.loadGame(c.key) : null;
                 if (saved) {
-                    commentary = { key, text: saved.text, status: 'done', error: '', model: saved.model || '', controller: null };
-                    commentary.attached = GameCommentary.attach(GameCommentary.parse(saved.text), moves);
+                    c.model = saved.model || '';
+                    Object.keys(saved.moves).forEach(i => { c.entries[i] = { text: saved.moves[i], status: 'done' }; });
                 }
             }
 
-            // After an analysis in AI mode, write the commentary right away.
+            // After an analysis in AI mode, write the commentary of the move on screen right away.
             function maybeAutoStartCommentary() {
-                if (!commentary && explainSource === 'ai' && currentAppMode !== 'coach' && moves.length && commentaryConfigured()) startCommentary();
+                if (commentaryActive()) requestCommentarySoon(currentMoveIndex);
             }
 
             function commentaryTextHtml(text) {
@@ -13625,10 +13639,8 @@
                 ).join('');
             }
 
-            function commentaryMoveLabel(index) {
-                const m = moves[index];
-                if (!m) return '';
-                return `${m.move_number}${m.is_white ? '.' : '...'} ${m.move}`;
+            function commentaryLive(entry) {
+                return Boolean(entry) && (entry.status === 'loading' || entry.status === 'streaming');
             }
 
             // LLM settings, edited in the bubble and kept in this browser only.
@@ -13647,53 +13659,32 @@
                 </form>`;
             }
 
-            // Sections of the commentary so far (re-parsed lazily: at most once per rendered frame).
-            function commentaryAttached(c) {
-                if (c.dirty) {
-                    c.attached = GameCommentary.attach(GameCommentary.parse(c.text), moves);
-                    c.dirty = false;
-                }
-                return c.attached;
-            }
-
             // While the model has not written anything yet: thinking (reasoning models) or waiting.
-            function commentaryWaitingHtml(c) {
-                const secs = c.startedAt ? Math.floor((Date.now() - c.startedAt) / 1000) : 0;
+            function commentaryWaitingHtml(entry) {
+                const secs = entry && entry.startedAt ? Math.floor((Date.now() - entry.startedAt) / 1000) : 0;
                 const timer = secs >= 2 ? ` <span class="gc-timer">${secs}s</span>` : '';
-                return c.thinking
+                return entry && entry.thinking
                     ? `<div class="gc-muted">The model is thinking it through before it starts writing…${timer}</div>`
-                    : `<div class="gc-muted">Waiting for the model to start writing…${timer}</div>`;
+                    : `<div class="gc-muted">Writing the commentary for this move…${timer}</div>`;
             }
 
             // Body of the coach bubble in AI mode for move `index` (-1 = start position).
             function commentaryBodyHtml(index) {
                 if (commentarySettingsOpen || !commentaryConfigured()) return commentarySettingsHtml();
-                const c = commentary && commentary.key === commentaryGameKey() ? commentary : null;
-                if (!c) return '<div class="gc-muted">Waiting for the model to start writing…</div>';
-                const live = c.status === 'loading' || c.status === 'streaming';
-                const attached = c.text ? commentaryAttached(c) : null;
-                const part = attached ? GameCommentary.forMove(attached, index, moves.length) : null;
-                let body = '';
-                if (c.status === 'error') {
-                    body = `<div class="gc-error">${escapeHtml(c.error)}</div>`;
-                } else if (part) {
-                    if (part.continued) body += `<div class="gc-from">Continuing from ${escapeHtml(commentaryMoveLabel(part.start))}</div>`;
-                    if (part.intro) body += commentaryTextHtml(part.intro);
-                    if (part.text) body += commentaryTextHtml(part.text);
-                    if (part.outro) body += `<div class="gc-outro">${commentaryTextHtml(part.outro)}</div>`;
-                } else if (live && !c.text) {
-                    body = commentaryWaitingHtml(c);
-                } else if (live) {
-                    const last = attached && attached.sections.length ? attached.sections[attached.sections.length - 1].index : -1;
-                    const at = last >= 0 ? `<b>${escapeHtml(commentaryMoveLabel(last))}</b>` : 'the introduction';
-                    body = `<div class="gc-muted">The commentary is at ${at} and will get to this move soon.</div>`;
-                } else {
-                    body = '<div class="gc-muted">No commentary for this move.</div>';
-                }
+                const c = commentaryState();
+                const entry = c.entries[index];
+                if (!entry) requestCommentarySoon(index);
+                const live = commentaryLive(entry);
+                let body;
+                if (entry && entry.status === 'error') body = `<div class="gc-error">${escapeHtml(entry.error)}</div>`;
+                else if (entry && entry.text) body = commentaryTextHtml(entry.text);
+                else if (entry && entry.status === 'stopped') body = '<div class="gc-muted">Stopped.</div>';
+                else body = commentaryWaitingHtml(entry);
+                if (!entry) return body; // about to be requested: no actions yet
                 const by = c.model ? `<span>by ${escapeHtml(c.model)}</span>` : '';
                 const actions = live
                     ? `<span class="gc-live">Writing</span>${by}<button type="button" class="gc-link" data-gc-action="stop">Stop</button>`
-                    : `${by}<button type="button" class="gc-link" data-gc-action="restart">${c.status === 'error' ? 'Try again' : 'Regenerate'}</button><button type="button" class="gc-link" data-gc-action="settings">AI settings</button>`;
+                    : `${by}<button type="button" class="gc-link" data-gc-action="restart">${entry && entry.status === 'error' ? 'Try again' : 'Regenerate'}</button><button type="button" class="gc-link" data-gc-action="settings">AI settings</button>`;
                 return `${body}<div class="gc-actions">${actions}</div>`;
             }
 
@@ -13717,10 +13708,11 @@
                 if (body) body.innerHTML = commentaryBodyHtml(currentMoveIndex);
             }
 
-            // Ticks the "Waiting… 12s" counter until the first words arrive.
+            // Ticks the "Writing… 12s" counter until the first words of the move on screen arrive.
             let commentaryWaitTimer = null;
             function syncCommentaryWaitTimer() {
-                const waiting = commentary && (commentary.status === 'loading' || commentary.status === 'streaming') && !commentary.text;
+                const entry = commentary && commentary.entries[currentMoveIndex];
+                const waiting = commentaryLive(entry) && !entry.text;
                 if (waiting && !commentaryWaitTimer) commentaryWaitTimer = setInterval(scheduleCommentaryRender, 1000);
                 if (!waiting && commentaryWaitTimer) { clearInterval(commentaryWaitTimer); commentaryWaitTimer = null; }
             }
@@ -13732,56 +13724,93 @@
                 (window.requestAnimationFrame || setTimeout)(renderCommentaryBody);
             }
 
-            function failCommentary(state, message) {
-                if (commentary !== state) return;
-                state.status = 'error';
-                state.error = message;
-                state.controller = null;
-                scheduleCommentaryRender();
+            // Ask for the move on screen once the player stops on it for a moment.
+            let commentaryDwellTimer = null;
+            function requestCommentarySoon(index) {
+                clearTimeout(commentaryDwellTimer);
+                commentaryDwellTimer = setTimeout(() => {
+                    if (index === currentMoveIndex && commentaryActive()) requestMoveCommentary(index);
+                }, COMMENTARY_DWELL_MS);
             }
 
-            async function startCommentary() {
-                if (typeof GameCommentary === 'undefined' || !moves.length) return;
-                if (commentary && (commentary.status === 'loading' || commentary.status === 'streaming')) return;
-                const settings = GameCommentary.loadSettings();
-                if (!GameCommentary.isConfigured(settings)) return;
-                const state = { key: commentaryGameKey(), text: '', status: 'loading', error: '', model: settings.model, attached: null, dirty: false, thinking: 0, startedAt: Date.now(), controller: new AbortController() };
-                commentary = state;
-                scheduleCommentaryRender();
+            // Make room for a request: drop in-flight requests for moves that are neither
+            // on screen nor next, and have not written anything yet.
+            function commentaryMakeRoom(c, keep) {
+                const live = Object.keys(c.entries).filter(i => commentaryLive(c.entries[i]));
+                if (live.length < COMMENTARY_MAX_ACTIVE) return true;
+                const victim = live.find(i => !keep.includes(Number(i)) && !c.entries[i].text);
+                if (victim === undefined) return false;
+                c.entries[victim].controller.abort();
+                delete c.entries[victim];
+                return true;
+            }
 
-                let stopped = false;
+            async function requestMoveCommentary(index, force) {
+                if (!commentaryActive() || index < -1 || index >= moves.length) return;
+                const c = commentaryState();
+                const existing = c.entries[index];
+                if (existing && (commentaryLive(existing) || !force)) return;
+                if (!commentaryMakeRoom(c, [currentMoveIndex, currentMoveIndex + 1])) return;
+
+                const settings = GameCommentary.loadSettings();
+                if (!c.pgn) c.pgn = buildAnnotatedPgn('all');
+                // What was already said about the last few moves, so the story carries on
+                const previous = [];
+                for (let i = index - 1; i >= -1 && previous.length < 3; i--) {
+                    const e = c.entries[i];
+                    if (e && e.text && e.status === 'done') previous.unshift({ index: i, text: e.text });
+                }
+                const messages = GameCommentary.buildMoveMessages({ pgn: c.pgn, moves, index, gameInfo: currentGameInfo || {}, previous });
+                const entry = { text: '', status: 'loading', error: '', thinking: 0, startedAt: Date.now(), controller: new AbortController() };
+                c.entries[index] = entry;
+                c.model = settings.model;
+                if (index === currentMoveIndex) scheduleCommentaryRender();
+
                 try {
-                    await GameCommentary.stream(settings, buildAnnotatedPgn('all'), {
-                        signal: state.controller.signal,
+                    const raw = await GameCommentary.stream(settings, messages, {
+                        signal: entry.controller.signal,
                         onText: (text) => {
-                            state.text = text;
-                            state.dirty = true;
-                            state.status = 'streaming';
-                            if (commentary === state) scheduleCommentaryRender();
+                            entry.text = GameCommentary.cleanText(text, true);
+                            entry.status = 'streaming';
+                            if (index === currentMoveIndex) scheduleCommentaryRender();
                         },
                         onThinking: (chars) => {
-                            state.thinking = chars;
-                            if (commentary === state) scheduleCommentaryRender();
+                            entry.thinking = chars;
+                            if (index === currentMoveIndex) scheduleCommentaryRender();
                         }
                     });
+                    entry.text = GameCommentary.cleanText(raw);
+                    entry.status = entry.text ? 'done' : 'error';
+                    if (!entry.text) entry.error = 'The model returned no commentary for this move.';
                 } catch (e) {
-                    stopped = state.controller && state.controller.signal.aborted;
-                    if (!stopped) return failCommentary(state, e.message || String(e));
+                    const aborted = entry.controller.signal.aborted;
+                    entry.status = aborted ? 'stopped' : 'error';
+                    if (!aborted) entry.error = e.message || String(e);
                 }
-                if (commentary !== state) return;
-
-                state.controller = null;
-                state.attached = GameCommentary.attach(GameCommentary.parse(state.text), moves);
-                state.dirty = false;
-                const hasText = state.attached.intro || state.attached.sections.length || state.attached.outro;
-                if (!hasText) return failCommentary(state, stopped ? 'Commentary stopped.' : 'The model returned no commentary.');
-                state.status = 'done';
-                if (!stopped) GameCommentary.save(state.key, { text: state.text, model: state.model });
-                scheduleCommentaryRender();
+                entry.controller = null;
+                if (commentary !== c || c.entries[index] !== entry) return;
+                if (entry.status === 'done') GameCommentary.saveMove(c.key, index, entry.text, c.model);
+                if (index === currentMoveIndex) scheduleCommentaryRender();
+                // Prefetch the next move while the player reads this one
+                if (entry.status === 'done' && (index === currentMoveIndex || index === currentMoveIndex + 1)) {
+                    const next = index + 1;
+                    if (next < moves.length && !c.entries[next]) requestMoveCommentary(next);
+                }
             }
 
             function stopCommentary() {
-                if (commentary && commentary.controller) commentary.controller.abort();
+                const entry = commentary && commentary.entries[currentMoveIndex];
+                if (entry && entry.controller) entry.controller.abort();
+            }
+
+            function regenerateMoveCommentary(index) {
+                const c = commentaryState();
+                const entry = c.entries[index];
+                if (entry && entry.controller) entry.controller.abort();
+                delete c.entries[index];
+                GameCommentary.removeMove(c.key, index);
+                requestMoveCommentary(index, true);
+                showMoveExplanation(index);
             }
 
             // Re-render the bubble when it is on screen (analysis of a loaded game).
@@ -13794,10 +13823,8 @@
                 if (!GameCommentary.isConfigured(settings)) return false;
                 GameCommentary.saveSettings(settings);
                 commentarySettingsOpen = false;
-                if (explainSource === 'ai' && moves.length && (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error')) {
-                    commentary = null;
-                    startCommentary();
-                }
+                // New settings: retry the moves that failed with the old ones
+                if (commentary) Object.keys(commentary.entries).forEach(i => { if (commentary.entries[i].status === 'error') delete commentary.entries[i]; });
                 syncLlmSettingsForms();
                 refreshCommentaryView();
                 return true;
@@ -13948,12 +13975,7 @@
                         if (!action) return;
                         const act = action.dataset.gcAction;
                         if (act === 'stop') stopCommentary();
-                        else if (act === 'restart') {
-                            if (commentary && commentary.key) GameCommentary.remove(commentary.key);
-                            commentary = null;
-                            startCommentary();
-                            showMoveExplanation(currentMoveIndex);
-                        } else if (act === 'settings' || act === 'cancel-settings') {
+                        else if (act === 'restart') regenerateMoveCommentary(currentMoveIndex); else if (act === 'settings' || act === 'cancel-settings') {
                             commentarySettingsOpen = act === 'settings';
                             showMoveExplanation(currentMoveIndex);
                         } else if (act === 'clear-settings') {

@@ -411,6 +411,47 @@
         return `${headerText}\n\n${wrap(tokens, LINE_WIDTH)}\n`;
     }
 
+    /**
+     * The annotations of one move, as build() writes them: its comment (for
+     * every move, not only the flagged ones), the engine lines from the
+     * position before it, and the punishment line the opponent could have
+     * played after it. Used to give an LLM the notes for the move at hand.
+     * Null when moves[index] cannot be replayed.
+     */
+    function moveNotes(moves, index, options) {
+        const opts = Object.assign({ lines: 'all', evals: true, maxPlies: DEFAULT_MAX_PLIES }, options || {});
+        const ChessCtor = getChessConstructor(opts.Chess);
+        const list = Array.isArray(moves) ? moves : [];
+        if (!ChessCtor || !(index >= 0 && index < list.length)) return null;
+        const board = new ChessCtor();
+        let fenBefore = '';
+        let san = '';
+        for (let i = 0; i <= index; i++) {
+            const fen = board.fen();
+            let m = null;
+            try { m = board.move(list[i].move); } catch (e) { m = null; }
+            if (!m) {
+                try { m = board.move(bareSan(list[i].move)); } catch (e) { m = null; }
+            }
+            if (!m) return null;
+            fenBefore = fen;
+            san = m.san;
+        }
+        const move = list[index];
+        const render = tokens => tokens.join(' ').replace(/\( /g, '(').replace(/ \)/g, ')');
+        const punishment = refutationLine(ChessCtor, move, board.fen(), opts);
+        return {
+            san,
+            token: moveToken(fenBefore, san, true),
+            fenBefore,
+            fenAfter: board.fen(),
+            quality: QUALITY_LABELS[qualityKey(move)] || '',
+            comment: moveComment(move, Object.assign({}, opts, { lines: 'all', notes: null }), index),
+            lines: opts.lines === 'none' ? [] : engineVariations(ChessCtor, move, fenBefore, opts).map(v => render(v.slice(1, -1))),
+            punishment: punishment.length ? render(lineTokens(punishment)) : ''
+        };
+    }
+
     /** "Magnus_vs_Hikaru_2024.01.31.pgn" (safe on every file system). */
     function fileName(gameInfo) {
         const info = gameInfo || {};
@@ -423,6 +464,7 @@
 
     return {
         build,
+        moveNotes,
         fileName,
         evalTag,
         cleanComment,

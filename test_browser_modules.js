@@ -754,68 +754,70 @@ console.log("✓ PgnExport passed!");
 console.log("Testing GameCommentary...");
 {
     const GameCommentary = require('./js/game-commentary.js');
+    const PgnExport = require('./js/pgn-export.js');
+    const mk = (n, w, m, extra) => Object.assign({ move_number: n, is_white: w, move: m, quality: 'good move', evaluation: '+0.30' }, extra || {});
     const game = [
-        { move_number: 1, is_white: true, move: 'e4' }, { move_number: 1, is_white: false, move: 'e5' },
-        { move_number: 2, is_white: true, move: 'Nf3' }, { move_number: 2, is_white: false, move: 'Nc6' },
-        { move_number: 3, is_white: true, move: 'Bc4' }, { move_number: 3, is_white: false, move: 'Nd4?' }
+        mk(1, true, 'e4'), mk(1, false, 'e5'), mk(2, true, 'Bc4'), mk(2, false, 'Nc6'), mk(3, true, 'Qh5'),
+        mk(3, false, 'Nf6??', { quality: 'blunder', detailed_quality: 'blunder', evaluation: '#1', analysis: {
+            best_move: 'g6', best_evaluation: '-0.40', explanation: 'Nf6 allows mate on f7.', refutation_variation: ['Qxf7#'],
+            why: { alternatives: [{ san: 'g6', pv: ['g7g6', 'h5f3', 'g8f6'], evaluation: '-0.40', verdict: 'better', reason: 'blocks the queen' }] } } }),
+        mk(4, true, 'Qxf7#')
     ];
+    const info = { white: 'Alice', black: 'Bob', white_elo: 1500, result: '1-0', opening: 'Wayward Queen Attack' };
 
-    const msgs = GameCommentary.buildMessages('[Event "x"]\n\n1. e4 e5 *');
-    assert.strictEqual(msgs.length, 2);
-    assert.strictEqual(msgs[0].role, 'system');
-    assert.ok(/GothamChess/.test(msgs[0].content) && /GothamChess/.test(GameCommentary.USER_PROMPT), 'The commentary is in the GothamChess style');
-    assert.ok(!/Agadmator/.test(JSON.stringify(msgs)), 'No trace of the old style');
-    assert.ok(/why the move is bad, why the suggested move is better/.test(GameCommentary.USER_PROMPT), 'The prompt asks for explanations');
-    assert.ok(/Never quote evaluation numbers/.test(msgs[0].content) && /"Stockfish evaluates"/.test(msgs[0].content), 'The model explains instead of reading out engine verdicts');
-    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v2', 'Old-style cached commentaries are not reused');
-    assert.ok(msgs[1].content.startsWith(GameCommentary.USER_PROMPT), 'The user prompt asks for GothamChess-style commentary of the annotated PGN');
-    assert.ok(msgs[1].content.includes('1. e4 e5 *'), 'The PGN goes in the prompt');
-    assert.ok(/go through the bad line and the better line and explain them/.test(msgs[1].content), 'The model is asked to go through the variations');
+    // PgnExport.moveNotes: one move's annotations, as the PGN has them
+    const notes = PgnExport.moveNotes(game, 5);
+    assert.strictEqual(notes.token, '3... Nf6');
+    assert.strictEqual(notes.quality, 'Blunder');
+    assert.ok(/g6 was best/.test(notes.comment) && /allows mate/.test(notes.comment), 'The move comment carries the verdict and the reason');
+    assert.deepStrictEqual(notes.lines, ['3... g6 { [%eval -0.40] Better: blocks the queen } 4. Qf3 Nf6'], 'The better line, as a PGN variation');
+    assert.strictEqual(notes.punishment, '4. Qxf7#');
+    assert.strictEqual(notes.fenBefore, 'r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3');
+    assert.ok(PgnExport.moveNotes(game, 0).comment.includes('[%eval 0.30]'), 'Quiet moves get notes too');
+    assert.strictEqual(PgnExport.moveNotes(game, 7), null);
 
-    assert.deepStrictEqual(GameCommentary.parseHeader('@@ 12... Nxd5'), { kind: 'move', number: 12, white: false, san: 'Nxd5' });
-    assert.deepStrictEqual(GameCommentary.parseHeader('**@@ 3. Bc4**'), { kind: 'move', number: 3, white: true, san: 'Bc4' });
-    assert.deepStrictEqual(GameCommentary.parseHeader('@@ 3 ... Nd4?'), { kind: 'move', number: 3, white: false, san: 'Nd4?' });
-    assert.deepStrictEqual(GameCommentary.parseHeader('@@ Intro'), { kind: 'intro' });
-    assert.strictEqual(GameCommentary.parseHeader('Then 12. Nxd5 wins.'), null);
+    // One request per move: the whole PGN as context, then the move at hand
+    const pgn = PgnExport.build(game, { gameInfo: info, lines: 'all' });
+    const ask = (index, previous) => GameCommentary.buildMoveMessages({ pgn, moves: game, index, gameInfo: info, previous });
+    const blunder = ask(5, [{ index: 4, text: 'The Wayward Queen!' }]);
+    assert.strictEqual(blunder.length, 2);
+    assert.strictEqual(blunder[0].role, 'system');
+    assert.ok(/Levy Rozman \(GothamChess\)/.test(blunder[0].content), 'The commentary is in the GothamChess style');
+    assert.ok(/one move at a time/.test(blunder[0].content), 'The model knows it comments move by move');
+    assert.ok(/Never quote evaluation numbers/.test(blunder[0].content) && /"Stockfish evaluates"/.test(blunder[0].content), 'The model explains instead of reading out engine verdicts');
+    assert.ok(/no thinking out loud/.test(blunder[0].content), 'No meta-talk about the instructions');
+    const [context, task] = blunder[1].content.split('\n\n---\n\n');
+    assert.ok(context.includes(pgn.trim()), 'The whole annotated PGN is the context');
+    assert.strictEqual(ask(0)[1].content.split('\n\n---\n\n')[0], context, 'The context is the same for every move (cacheable prefix)');
+    assert.ok(task.includes("The board now shows 3... Nf6, Black's move 3. Give the commentary for this move only."));
+    assert.ok(task.includes('Moves so far: 1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6'), 'The moves so far, without the ?? glyphs');
+    assert.ok(task.includes(`Position before the move (FEN): ${notes.fenBefore}`));
+    assert.ok(task.includes('- How the opponent can punish it: 4. Qxf7#'));
+    assert.ok(task.includes('- Lines from the position before the move: 3... g6'), 'The better line is spelled out for this move');
+    assert.ok(task.includes('3. Qh5: The Wayward Queen!'), 'What was said about the previous moves carries the story on');
+    assert.ok(/key moment/.test(task) && /walk through the bad line and the better line/.test(task), 'Critical moves get room for the lines');
+    assert.ok(/do not mention moves that come later/.test(task), 'No spoilers');
+    assert.ok(/quiet move: 1 or 2 sentences/.test(ask(1)[1].content), 'Quiet moves stay short');
 
-    const text = [
-        'Hello everyone and welcome!',
-        '@@ 1. e4',
-        'King pawn.',
-        '@@ 2... Nc6',
-        'Quiet development.',
-        '@@ 2... Nc6', // duplicate header is folded into the previous section
-        'More.',
-        '@@ 9. Qh5', // not a move of this game
-        'Lost words.',
-        '@@ 3... Nd4?',
-        'The point is **Nxd4** exd4 and White is better.',
-        '@@ outro',
-        'Thanks for watching.'
-    ].join('\n');
-    const parsed = GameCommentary.parse(text);
-    assert.strictEqual(parsed.intro, 'Hello everyone and welcome!', 'Text before the first header is the intro');
-    assert.strictEqual(parsed.outro, 'Thanks for watching.');
-    const att = GameCommentary.attach(parsed, game);
-    assert.deepStrictEqual(att.sections.map(s => s.index), [0, 3, 5]);
-    assert.ok(att.sections[1].text.includes('More.') && att.sections[1].text.includes('Lost words.'), 'Stray sections are kept with the previous one');
+    const mate = ask(6)[1].content;
+    assert.ok(mate.includes('The board now shows 4. Qxf7#'), 'Check and mate signs are kept');
+    assert.ok(mate.includes('- 4. Qxf7# punishes the previous move, 3... Nf6 (a blunder).'), 'A punishment is a key moment');
+    assert.ok(/last move of the game \(result 1-0\)\. After it, wrap up the game/.test(mate), 'The last move wraps the game up');
+    const missed = game.slice(0, 6).concat([mk(4, true, 'Nc3')]);
+    assert.ok(GameCommentary.buildMoveMessages({ pgn, moves: missed, index: 6 })[1].content.includes('could have been punished with 4. Qxf7#, and 4. Nc3 misses that'), 'A missed punishment is pointed out');
 
-    assert.strictEqual(GameCommentary.forMove(att, -1, game.length).intro, 'Hello everyone and welcome!');
-    const atNf3 = GameCommentary.forMove(att, 2, game.length);
-    assert.strictEqual(atNf3.start, 0);
-    assert.strictEqual(atNf3.continued, true, 'Quiet moves show the section they belong to');
-    const last = GameCommentary.forMove(att, 5, game.length);
-    assert.strictEqual(last.continued, false);
-    assert.strictEqual(last.outro, 'Thanks for watching.', 'The last move carries the outro');
+    const intro = ask(-1)[1].content;
+    assert.ok(/Give the intro before the first move/.test(intro) && intro.includes('White: Alice (1500), Black: Bob') && intro.includes('Wayward Queen Attack'));
+    assert.ok(/without revealing the result/.test(intro));
 
-    // Streaming: a partial answer already maps to moves.
-    const partial = GameCommentary.attach(GameCommentary.parse('Hi!\n@@ 1. e4\nKing pa'), game);
-    assert.strictEqual(GameCommentary.forMove(partial, 1, game.length).text, 'King pa');
-    assert.strictEqual(GameCommentary.forMove(GameCommentary.attach(GameCommentary.parse(''), game), 0, game.length), null);
-
-    // Wrong side in the header: the SAN decides.
-    const swapped = GameCommentary.attach(GameCommentary.parse('@@ 1. e5\nBlack replies.'), game);
-    assert.strictEqual(swapped.sections[0].index, 1);
+    // cleanText: what the model says, minus thinking and labels
+    assert.strictEqual(GameCommentary.cleanText('<think>Let me see</think>\n**3... Nf6??**\nOh no, not Nf6!'), 'Oh no, not Nf6!');
+    assert.strictEqual(GameCommentary.cleanText('@@ 12. Nxd5\nThe knight jumps in.'), 'The knight jumps in.');
+    assert.strictEqual(GameCommentary.cleanText('Hmm <think>still going'), 'Hmm', 'An open <think> hides the rest while it streams');
+    assert.strictEqual(GameCommentary.cleanText('12... Nxd5 is a great move.'), '12... Nxd5 is a great move.', 'A sentence that starts with the move is kept');
+    assert.strictEqual(GameCommentary.cleanText('**3. Qh5*', true), '', 'A label still being written is held back');
+    assert.strictEqual(GameCommentary.cleanText('**3. Qh5**\nThe queen', true), 'The queen');
+    assert.strictEqual(GameCommentary.cleanText('The queen comes out', true), 'The queen comes out', 'Plain text streams straight away');
 
     // SSE decoding (split across chunks)
     const dec = GameCommentary.createSseDecoder();
@@ -828,13 +830,19 @@ console.log("Testing GameCommentary...");
     assert.throws(() => GameCommentary.createSseDecoder().push('data: {"error":{"message":"quota"}}\n'), /quota/);
     assert.strictEqual(GameCommentary.completionText({ choices: [{ message: { content: 'Hi' } }] }), 'Hi');
 
-    // Storage keeps the most recent games
-    const store = { data: {}, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; } };
-    for (let i = 0; i < 10; i++) GameCommentary.save('g' + i, { text: 't' + i, savedAt: 1000 + i }, store);
-    assert.strictEqual(GameCommentary.load('g9', store).text, 't9');
-    assert.strictEqual(GameCommentary.load('g0', store), null, 'Old commentaries are evicted');
-    GameCommentary.remove('g9', store);
-    assert.strictEqual(GameCommentary.load('g9', store), null);
+    // Per-move storage keeps the most recent games, and drops the old one-shot caches
+    const store = { data: { whyblunder_commentary_v2: '{}' }, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
+    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v3', 'One-shot commentaries are not reused');
+    GameCommentary.saveMove('gA', -1, 'Intro', 'm', store);
+    GameCommentary.saveMove('gA', 5, 'Blunder!', 'm', store);
+    assert.deepStrictEqual(GameCommentary.loadGame('gA', store).moves, { '-1': 'Intro', 5: 'Blunder!' });
+    assert.strictEqual(GameCommentary.loadGame('gA', store).model, 'm');
+    assert.ok(!('whyblunder_commentary_v2' in store.data), 'The old cache is removed');
+    GameCommentary.removeMove('gA', 5, store);
+    assert.deepStrictEqual(GameCommentary.loadGame('gA', store).moves, { '-1': 'Intro' });
+    for (let i = 0; i < 10; i++) { store.data[GameCommentary.STORAGE_KEY] = JSON.stringify(Object.assign(JSON.parse(store.data[GameCommentary.STORAGE_KEY]), { ['g' + i]: { moves: { 0: 't' }, savedAt: 1000 + i } })); }
+    GameCommentary.saveMove('gB', 0, 'x', 'm', store);
+    assert.ok(GameCommentary.loadGame('gB', store) && !GameCommentary.loadGame('g0', store), 'Old games are evicted');
 
     // LLM settings (kept in the player's localStorage)
     const llmStore = { data: {}, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
@@ -843,14 +851,14 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(GameCommentary.isConfigured({ model: 'llama3', baseUrl: 'http://localhost:11434/v1' }), true, 'Local endpoints work without a key');
     GameCommentary.saveSettings({ baseUrl: ' https://x.test/v1/chat/completions ', model: ' m ', apiKey: 'k' }, llmStore);
     assert.deepStrictEqual(GameCommentary.loadSettings(llmStore), { baseUrl: 'https://x.test/v1', model: 'm', apiKey: 'k' });
-    const req = GameCommentary.buildRequest(GameCommentary.loadSettings(llmStore), '1. e4 *');
+    const req = GameCommentary.buildRequest(GameCommentary.loadSettings(llmStore), [{ role: 'user', content: '1. e4 *' }]);
     assert.strictEqual(req.url, 'https://x.test/v1/chat/completions');
     assert.strictEqual(req.init.headers.Authorization, 'Bearer k');
     const reqBody = JSON.parse(req.init.body);
     assert.strictEqual(reqBody.model, 'm');
     assert.strictEqual(reqBody.stream, true);
-    assert.ok(reqBody.messages[1].content.includes('1. e4 *'));
-    assert.ok(!('Authorization' in GameCommentary.buildRequest({ model: 'l', baseUrl: 'http://localhost:1234/v1' }, '').init.headers), 'No key, no Authorization header');
+    assert.deepStrictEqual(reqBody.messages, [{ role: 'user', content: '1. e4 *' }]);
+    assert.ok(!('Authorization' in GameCommentary.buildRequest({ model: 'l', baseUrl: 'http://localhost:1234/v1' }, []).init.headers), 'No key, no Authorization header');
     GameCommentary.clearSettings(llmStore);
     assert.strictEqual(GameCommentary.loadSettings(llmStore).model, '');
 
@@ -862,7 +870,10 @@ console.log("Testing GameCommentary...");
     assert.strictEqual((indexHtml.match(/data-llm-form autocomplete="off"/g) || []).length, 2, 'The LLM settings are in the desktop Settings menu and the mobile options, before any game is loaded');
     assert.ok(indexHtml.includes('data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Settings"'), 'Typing in the Settings menu does not close it');
     assert.ok(/function commitCommentarySettings\(settings\) \{[\s\S]{0,600}syncLlmSettingsForms\(\);/.test(indexHtml), 'The bubble form and the Settings menu share one save path');
-    assert.ok(indexHtml.includes('await GameCommentary.stream(settings, buildAnnotatedPgn(\'all\')'), 'The browser calls the LLM directly');
+    assert.ok(indexHtml.includes('await GameCommentary.stream(settings, messages, {'), 'The browser calls the LLM directly');
+    assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ pgn: c.pgn, moves, index, gameInfo: currentGameInfo || {}, previous })'), 'One request per move, with the annotated PGN as context');
+    assert.ok(indexHtml.includes("if (!c.pgn) c.pgn = buildAnnotatedPgn('all');"), 'The PGN context is built once per game (stable prefix)');
+    assert.ok(/if \(entry\.status === 'done' && \(index === currentMoveIndex \|\| index === currentMoveIndex \+ 1\)\) \{[\s\S]{0,160}requestMoveCommentary\(next\)/.test(indexHtml), 'The next move is prefetched');
     assert.ok(!indexHtml.includes('id="ccCommentaryBtn"') && !indexHtml.includes('data-commentary-card'), 'No separate commentary UI');
     assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'game-commentary.js'), 'utf8')), 'Commentary parsing must be deterministic');
 }
@@ -913,24 +924,25 @@ console.log("✓ GameCommentary passed!");
     });
     const port = await new Promise(resolve => upstream.listen(0, '127.0.0.1', () => resolve(upstream.address().port)));
     const settings = { baseUrl: `http://127.0.0.1:${port}/v1`, model: 'test-model', apiKey: 'secret' };
+    const MSGS = [{ role: 'user', content: '1. e4 *' }];
     try {
         const updates = [];
-        const text = await GameCommentary.stream(settings, '1. e4 *', { onText: t => updates.push(t) });
+        const text = await GameCommentary.stream(settings, MSGS, { onText: t => updates.push(t) });
         assert.strictEqual(text, 'Hello everyone\n@@ 1. e4\nGood move.', 'The SSE stream is assembled');
         assert.ok(updates.length >= 1 && updates[updates.length - 1] === text, 'onText gets the text so far');
         assert.strictEqual(seen.url, '/v1/chat/completions');
         assert.strictEqual(seen.auth, 'Bearer secret');
         assert.strictEqual(seen.body.stream, true);
 
-        assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'plain' }), '1. e4 *'), '@@ 1. e4\nNo stream.', 'Non-streaming answers work too');
-        await assert.rejects(GameCommentary.stream(Object.assign({}, settings, { model: 'broken' }), '1. e4 *'), /401: Invalid API key/, 'API errors are readable');
-        assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'untyped-json' }), '1. e4 *'), 'Mislabeled JSON.', 'A JSON answer is recognized whatever its content-type');
+        assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'plain' }), MSGS), '@@ 1. e4\nNo stream.', 'Non-streaming answers work too');
+        await assert.rejects(GameCommentary.stream(Object.assign({}, settings, { model: 'broken' }), MSGS), /401: Invalid API key/, 'API errors are readable');
+        assert.strictEqual(await GameCommentary.stream(Object.assign({}, settings, { model: 'untyped-json' }), MSGS), 'Mislabeled JSON.', 'A JSON answer is recognized whatever its content-type');
 
         // Streaming is live: the first words show up before the response is over.
         for (const model of ['slow', 'text-plain-sse']) {
             const seenAt = [];
             const t0 = Date.now();
-            const full = await GameCommentary.stream(Object.assign({}, settings, { model }), '1. e4 *', { onText: t => seenAt.push([t, Date.now() - t0]) });
+            const full = await GameCommentary.stream(Object.assign({}, settings, { model }), MSGS, { onText: t => seenAt.push([t, Date.now() - t0]) });
             const total = Date.now() - t0;
             assert.strictEqual(full, 'First second');
             assert.strictEqual(seenAt[0][0], 'First', `${model}: the first chunk is delivered on its own`);
@@ -939,10 +951,10 @@ console.log("✓ GameCommentary passed!");
 
         // Reasoning models: thinking is reported before the first words.
         const thinking = [];
-        const thought = await GameCommentary.stream(Object.assign({}, settings, { model: 'thinker' }), '1. e4 *', { onThinking: n => thinking.push(n) });
+        const thought = await GameCommentary.stream(Object.assign({}, settings, { model: 'thinker' }), MSGS, { onThinking: n => thinking.push(n) });
         assert.strictEqual(thought, 'First second', 'Reasoning text is not part of the commentary');
         assert.ok(thinking.length >= 1 && thinking[thinking.length - 1] === 17, 'onThinking counts the reasoning characters');
-        await assert.rejects(GameCommentary.stream({ baseUrl: 'http://127.0.0.1:1/v1', model: 'm' }, '1. e4 *'), /Could not reach .*CORS/, 'Unreachable endpoints mention CORS');
+        await assert.rejects(GameCommentary.stream({ baseUrl: 'http://127.0.0.1:1/v1', model: 'm' }, MSGS), /Could not reach .*CORS/, 'Unreachable endpoints mention CORS');
         console.log("✓ GameCommentary.stream passed!");
     } finally {
         upstream.close();

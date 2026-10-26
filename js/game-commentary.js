@@ -1,22 +1,14 @@
 /**
  * game-commentary.js - GothamChess-style move-by-move commentary for WhyBlunder.
  *
- * The analyzed game goes out as the annotated PGN (PgnExport, every engine
- * line included) to an OpenAI-compatible chat completions API. The model
- * answers in a light section format, one header per move it talks about:
- *
- *   @@ intro
- *   Hello everyone and welcome to ...
- *   @@ 1. e4
- *   ...
- *   @@ 12... Nxd5
- *   ...
- *   @@ outro
- *   ...
- *
- * A section covers its move and the quiet moves after it, up to the next
- * header, so the UI can show "the commentary for this move" while the
- * player steps through the game (and while the text is still streaming).
+ * Commentary is written one move at a time, like a video where the viewer
+ * only sees the board up to the current move. Every request carries the
+ * whole annotated PGN (PgnExport, every engine line) so the model knows the
+ * story of the game, then asks for the commentary of a single move with
+ * that move's facts spelled out: the position, the moves so far, its
+ * engine notes (PgnExport.moveNotes) and what was already said about the
+ * previous moves. The PGN part is the same for every move of a game, so
+ * APIs with prompt caching only pay for it once.
  *
  * The browser calls the API directly (stream()), with the base URL, model
  * and key the player saved in localStorage (loadSettings/saveSettings): the
@@ -31,166 +23,191 @@
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
 
-    const USER_PROMPT = 'this PGN has all the analysis/variations, can you provide a GothamChess (Levy Rozman) style commentary move by move. when there is information about the better line or bad line, go through it and explain what is actually happening: why the move is bad, why the suggested move is better.';
-
     const SYSTEM_PROMPT = [
         'You are a chess commentator in the style of Levy Rozman (GothamChess): high-energy, funny and direct, talking',
         'straight to the viewer ("we", "you"), asking them what they would play, hyping the great moves, playfully roasting',
         'the blunders, naming the tactics out loud (fork, pin, skewer, discovered attack, back-rank mate, Greek gift...),',
         'and above all teaching: every bit of hype comes with the reason behind it.',
         '',
-        'The PGN you get was annotated by a chess engine: [%eval] tags, NAGs (?! ? ?? ! !!), comments with the verdict and',
-        'the better move, and variations with the better lines and the punishment lines. Treat all of that as your private',
-        'preparation notes. The viewer never sees them, so do not read them out: turn them into explanations.',
-        '- Say what each important move is trying to do: the plan, the piece it develops or activates, the square or',
-        '  weakness it targets, the threat it makes or stops.',
-        '- For a move marked ?!, ? or ??, explain concretely what goes wrong: which piece is left hanging or overloaded,',
-        '  which tactic it allows, what the opponent threatens next, and walk through the punishing line from the notes',
-        '  move by move in plain words ("Nf6?? and now Qxf7 is checkmate, because the f7 pawn was only defended by the king").',
+        'You commentate one move at a time, like a video where the viewer only sees the board up to the current move.',
+        'You get the whole game annotated by a chess engine, and the engine notes for the move at hand. Those notes are',
+        'your private preparation. The viewer never sees them, so do not read them out: turn them into explanations.',
+        '- Say what the move is trying to do: the plan, the piece it develops or activates, the square or weakness it',
+        '  targets, the threat it makes or stops.',
+        '- For an inaccuracy, mistake or blunder, explain concretely what goes wrong: which piece is left hanging or',
+        '  overloaded, which tactic it allows, what the opponent threatens next. Walk through the punishing line from the',
+        '  notes move by move in plain words ("Nf6?? and now Qxf7 is checkmate, because f7 was only defended by the king").',
         '- When the notes give a better move, explain why it is better: what it achieves that the played move does not,',
-        '  what it prevents, and how the line goes on. Play the variation out loud ("instead, 14. Nd5! hits the queen and',
-        '  after 14...Qd8 15. Nxf6+ the king is wide open").',
-        '- When the opponent missed the punishment, show what they could have done and why it works.',
+        '  what it prevents, and how the line goes on ("instead, 14. Nd5! hits the queen, and after 14...Qd8 15. Nxf6+',
+        '  the king is wide open").',
+        '- When the opponent could have punished the previous move and did not, show what they missed and why it works.',
         '- Never quote evaluation numbers (+1.35, -0.61, #3) and never say "the engine says", "Stockfish evaluates",',
         '  "the computer gives" or "the evaluation is". Give the reason, not the verdict; when the overall picture matters,',
         '  say it in plain words ("and now White is just winning", "this is pretty much equal", "Black is up a piece").',
-        '- Stay faithful to the notes: do not invent tactics, threats or lines they do not support. If the reason a move',
-        '  is bad is not obvious, describe what happens in the line shown for it.',
-        '- Write moves in standard algebraic notation (e.g. 14. Nxe5 dxe5 15. Qh5).'
+        '- Stay faithful to the notes and the position: do not invent tactics, threats or lines they do not support, and',
+        '  only mention moves that are legal in the position. If the reason a move is bad is not obvious, describe what',
+        '  happens in the line shown for it.',
+        '- Write moves in standard algebraic notation (e.g. 14. Nxe5 dxe5 15. Qh5).',
+        '- Answer with the commentary itself: plain text, no heading, no move label, no notes about these instructions,',
+        '  and no thinking out loud.'
     ].join('\n');
 
-    const FORMAT_RULES = [
-        'Answer in plain text (no markdown headings, no tables), split into sections. Each section starts with a header line',
-        'that begins with "@@" and nothing else on that line:',
-        '- "@@ intro" first: greet the viewers, introduce the players and the opening, and tease what is coming.',
-        '- "@@ <move>" for a move, copying the move number and the move from the main line exactly, e.g. "@@ 1. e4" for a',
-        '  White move and "@@ 12... Nxd5" for a Black move.',
-        '- "@@ outro" last: wrap up the game and the lessons to take away, the way GothamChess ends his videos.',
-        'A section covers its move and the quiet moves after it until the next header, so group the quiet moves (the',
-        'opening, simple recaptures) and cover them quickly with the idea behind them. Every move marked ?!, ?, ??, ! or !!',
-        'needs its own section, and so does every move the opponent could have punished. Those critical sections can run',
-        'longer: go through the bad line and the better line and explain them. Keep the sections in game order.'
-    ].join('\n');
+    const CRITICAL = ['inaccuracy', 'mistake', 'miss', 'blunder', 'brilliant', 'great'];
 
-    const STORAGE_KEY = 'whyblunder_commentary_v2'; // v1 held the older Agadmator-style text
+    const STORAGE_KEY = 'whyblunder_commentary_v3'; // v3: per-move commentary (v1/v2 held one-shot text)
+    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2'];
     const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
     const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
 
-    /** Chat messages for the annotated PGN (OpenAI chat completions format). */
-    function buildMessages(pgn, options) {
-        const opts = options || {};
-        const prompt = opts.prompt ? String(opts.prompt) : USER_PROMPT;
-        return [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: `${prompt}\n\n${FORMAT_RULES}\n\nPGN:\n${String(pgn || '').trim()}\n` }
-        ];
-    }
-
-    /** '@@ 12... Nxd5' -> { number: 12, white: false, san: 'Nxd5' }; '@@ intro' -> { kind: 'intro' }; null otherwise. */
-    function parseHeader(line) {
-        const m = String(line || '').match(/^[\s*_#>]*@@\s*(.*?)[\s*_]*$/);
-        if (!m) return null;
-        const body = m[1].replace(/[*_]/g, '').trim();
-        const word = body.toLowerCase().replace(/[^a-z]/g, '');
-        if (word === 'intro' || word === 'outro' || word === 'error') return { kind: word };
-        const mv = body.match(/^(\d+)\s*(\.\s*\.\s*\.|…|\.)?\s*(.*)$/);
-        if (!mv) return null;
-        const dots = (mv[2] || '.').replace(/\s/g, '');
-        const san = (mv[3] || '').trim().split(/\s+/)[0] || '';
-        // "12 ... Nxd5" or "12... Nxd5" is Black; "12. Nxd5" is White.
-        return { kind: 'move', number: parseInt(mv[1], 10), white: !(dots === '...' || dots === '…'), san: san.replace(/^\.+/, '') };
-    }
-
-    /**
-     * Split the model's answer (complete or still streaming) into sections.
-     * Text before the first header counts as the intro.
-     */
-    function parse(text) {
-        const out = { intro: '', outro: '', error: '', sections: [] };
-        let current = { kind: 'intro', lines: [] };
-        const flush = () => {
-            const body = current.lines.join('\n').replace(/^\s+|\s+$/g, '');
-            if (current.kind === 'move') {
-                out.sections.push({ number: current.number, white: current.white, san: current.san, text: body });
-            } else if (body) {
-                out[current.kind] = out[current.kind] ? `${out[current.kind]}\n\n${body}` : body;
-            }
-        };
-        String(text || '').replace(/\r\n?/g, '\n').split('\n').forEach(line => {
-            const header = parseHeader(line);
-            if (header) {
-                flush();
-                current = Object.assign({ lines: [] }, header);
-            } else {
-                current.lines.push(line);
-            }
-        });
-        flush();
-        return out;
+    function getPgnExport(override) {
+        if (override) return override;
+        if (typeof PgnExport !== 'undefined') return PgnExport;
+        if (typeof window !== 'undefined' && window.PgnExport) return window.PgnExport;
+        try {
+            return require('./pgn-export.js');
+        } catch (e) {
+            return null;
+        }
     }
 
     function bareSan(san) {
         return String(san || '').replace(/[?!+#]+$/g, '');
     }
 
-    /** Index in moves of move number `number` for the given side (-1 when absent). */
-    function moveIndex(moves, number, white) {
-        const list = moves || [];
-        for (let i = 0; i < list.length; i++) {
-            const m = list[i];
-            if (m && Number(m.move_number) === number && Boolean(m.is_white) === Boolean(white)) return i;
+    /** SAN as shown to the viewer: check and mate signs kept, ?! annotations dropped. */
+    function displaySan(san) {
+        return String(san || '').replace(/[?!]+$/g, '');
+    }
+
+    /** '12. Nxd5' / '12... Nxd5' for moves[index]. */
+    function moveLabel(moves, index) {
+        const m = moves && moves[index];
+        if (!m) return '';
+        return `${m.move_number}${m.is_white ? '.' : '...'} ${displaySan(m.move)}`;
+    }
+
+    /** '1. e4 c5 2. Bb5' for moves[0..index]. */
+    function movesSoFar(moves, index) {
+        const out = [];
+        for (let i = 0; i <= index && i < moves.length; i++) {
+            const m = moves[i];
+            if (m.is_white) out.push(`${m.move_number}. ${displaySan(m.move)}`);
+            else out.push(i === 0 ? `${m.move_number}... ${displaySan(m.move)}` : displaySan(m.move));
         }
-        return -1;
+        return out.join(' ');
+    }
+
+    function qualityKey(move) {
+        const q = String((move && (move.detailed_quality || move.quality)) || '').toLowerCase().trim();
+        if (q === 'missed win' || q === 'missed-win') return 'miss';
+        return q;
+    }
+
+    function players(info) {
+        const name = (n, elo) => `${n || '?'}${elo ? ` (${elo})` : ''}`;
+        return `White: ${name(info.white, info.white_elo)}, Black: ${name(info.black, info.black_elo)}`;
     }
 
     /**
-     * Tie parsed sections to the game's moves. Sections whose header does not
-     * name a move of the game (or name one out of order) are folded into the
-     * previous section so no text is lost.
+     * Chat messages asking for the commentary of moves[index] (-1 = the intro,
+     * before the first move). The first two parts (system prompt, annotated
+     * PGN) are identical for every move of a game, so they can be cached.
+     *
+     * @param {object} o
+     *   pgn       the annotated PGN of the whole game (PgnExport.build, lines 'all')
+     *   moves     analyzed moves (output contract in AGENTS.md)
+     *   index     move to comment on, -1 for the intro
+     *   gameInfo  { white, black, white_elo, black_elo, opening, eco, result }
+     *   previous  [{ index, text }] what was already said, most recent last
      */
-    function attach(parsed, moves) {
-        const p = parsed || parse('');
-        const sections = [];
-        p.sections.forEach(s => {
-            let index = moveIndex(moves, s.number, s.white);
-            // "@@ 12. Nxd5" for Black's 12th move: trust the SAN when the side is wrong.
-            if (index >= 0 && s.san && bareSan(moves[index].move) !== bareSan(s.san)) {
-                const other = moveIndex(moves, s.number, !s.white);
-                if (other >= 0 && bareSan(moves[other].move) === bareSan(s.san)) index = other;
-            }
-            const last = sections[sections.length - 1];
-            if (index < 0 || (last && index <= last.index)) {
-                if (last && s.text) last.text = last.text ? `${last.text}\n\n${s.text}` : s.text;
-                return;
-            }
-            sections.push({ index, text: s.text });
-        });
-        return { intro: p.intro, outro: p.outro, error: p.error, sections };
-    }
+    function buildMoveMessages(o) {
+        const moves = o.moves || [];
+        const index = typeof o.index === 'number' ? o.index : -1;
+        const info = o.gameInfo || {};
+        const P = getPgnExport(o.PgnExport);
+        const context = [
+            'Here is the whole game, annotated by a chess engine: [%eval] tags, NAGs (?! ? ?? ! !!), comments with the',
+            'verdict and the better move, and variations with the better lines and the punishment lines. Study it so you',
+            'know the story of the game. You will comment on it one move at a time.',
+            '',
+            'PGN:',
+            String(o.pgn || '').trim()
+        ].join('\n');
 
-    /**
-     * Commentary to show at move `index` (-1 = start position).
-     * { text, start, continued, intro, outro } or null when the commentator
-     * has not got there (yet).
-     */
-    function forMove(attached, index, totalMoves) {
-        if (!attached) return null;
-        const res = { text: '', start: -1, continued: false, intro: '', outro: '' };
+        const task = [];
         if (index < 0) {
-            if (!attached.intro) return null;
-            res.intro = attached.intro;
-            return res;
+            task.push('The viewer is looking at the starting position. Give the intro before the first move, in 2 to 4 sentences:');
+            task.push(`greet the viewers, introduce the players (${players(info)})${info.opening ? ` and the opening (${info.opening})` : ''},`);
+            task.push('and tease what to look out for, without revealing the result or the key moments yet.');
+        } else {
+            const move = moves[index];
+            const label = moveLabel(moves, index);
+            const notes = P && P.moveNotes ? P.moveNotes(moves, index) : null;
+            const key = qualityKey(move);
+            const prev = index > 0 ? moves[index - 1] : null;
+            const prevNotes = prev && P && P.moveNotes ? P.moveNotes(moves, index - 1) : null;
+            const prevFlagged = prev && ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(qualityKey(prev));
+            const punishFirst = prevNotes && prevNotes.punishment ? bareSan(prevNotes.punishment.replace(/^\d+\.(\.\.)?\s*/, '').split(/\s+/)[0]) : '';
+            const missedPunishment = Boolean(prevFlagged && punishFirst && punishFirst !== bareSan(move.move));
+            const punishes = Boolean(prevFlagged && punishFirst && punishFirst === bareSan(move.move));
+            const critical = CRITICAL.includes(key) || missedPunishment || punishes;
+
+            task.push(`The board now shows ${label}, ${move.is_white ? 'White' : 'Black'}'s move ${move.move_number}. Give the commentary for this move only.`);
+            task.push('');
+            if (notes && notes.fenBefore) task.push(`Position before the move (FEN): ${notes.fenBefore}`);
+            task.push(`Moves so far: ${movesSoFar(moves, index)}`);
+            task.push('');
+            task.push('Engine notes for this move (private, do not read them out):');
+            task.push(`- Verdict: ${(notes && notes.quality) || key || 'good move'}`);
+            if (notes && notes.comment) task.push(`- Comment: ${notes.comment}`);
+            if (notes && notes.lines && notes.lines.length) task.push(`- Lines from the position before the move: ${notes.lines.join(' | ')}`);
+            if (notes && notes.punishment) task.push(`- How the opponent can punish it: ${notes.punishment}`);
+            if (missedPunishment) {
+                task.push(`- The previous move, ${moveLabel(moves, index - 1)}, was a ${qualityKey(prev)}: it could have been punished with ${prevNotes.punishment}, and ${label} misses that.`);
+            }
+            if (punishes) {
+                task.push(`- ${label} punishes the previous move, ${moveLabel(moves, index - 1)} (a ${qualityKey(prev)}).`);
+            }
+            const previous = (o.previous || []).filter(p => p && p.text);
+            if (previous.length) {
+                task.push('');
+                task.push('What you already said (most recent last). Carry the story on; do not repeat it:');
+                previous.forEach(p => task.push(`${p.index < 0 ? 'Intro' : moveLabel(moves, p.index)}: ${p.text.replace(/\s+/g, ' ').trim()}`));
+            }
+            task.push('');
+            task.push(critical
+                ? 'This is a key moment: take 3 to 6 sentences, and walk through the bad line and the better line.'
+                : 'This is a quiet move: 1 or 2 sentences on the idea behind it are enough.');
+            task.push('Talk only about this move and the lines in its notes; do not mention moves that come later in the game.');
+            if (index === moves.length - 1) {
+                task.push(`This is the last move of the game${info.result ? ` (result ${info.result})` : ''}. After it, wrap up the game in 2 or 3 sentences: how it was decided and the lesson to take away, the way GothamChess ends his videos.`);
+            }
         }
-        let section = null;
-        attached.sections.forEach(s => { if (s.index <= index) section = s; });
-        if (section) {
-            res.text = section.text;
-            res.start = section.index;
-            res.continued = section.index !== index;
-        }
-        if (typeof totalMoves === 'number' && index === totalMoves - 1 && attached.outro) res.outro = attached.outro;
-        return (res.text || res.outro) ? res : null;
+        task.push('Answer with the commentary text only.');
+
+        return [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: `${context}\n\n---\n\n${task.join('\n')}` }
+        ];
+    }
+
+    /**
+     * The model's answer, ready to show: no <think> blocks (and nothing while
+     * one is still open), no leading move label or heading, trimmed. With
+     * `partial` (text still streaming), a first line that may turn out to be
+     * a label ("**12... Nx") is held back until it is complete.
+     */
+    function cleanText(text, partial) {
+        let t = String(text || '').replace(/\r\n?/g, '\n');
+        t = t.replace(/<think>[\s\S]*?<\/think>/gi, '');
+        const open = t.search(/<think>/i);
+        if (open >= 0) t = t.slice(0, open);
+        t = t.replace(/^\s+/, '');
+        // "**12... Nxd5**", "12... Nxd5:", "@@ 12... Nxd5", "## Intro" on a line of their own
+        t = t.replace(/^(?:[*_#>\s@]*(?:\d+\s*\.(?:\s*\.\s*\.)?\s*\S+|intro|commentary)[*_:\s]*\n)+/i, '');
+        if (partial && !t.includes('\n') && t.length < 40 && /^[*_#>@]|^\d+\s*\.|^(intro|commentary)\b/i.test(t)) return '';
+        return t.trim();
     }
 
     /**
@@ -268,8 +285,8 @@
         return Boolean(s.model && (s.apiKey || s.baseUrl !== DEFAULT_BASE_URL));
     }
 
-    /** fetch() arguments for a streaming chat completion of the annotated PGN. */
-    function buildRequest(settings, pgn, options) {
+    /** fetch() arguments for a streaming chat completion of `messages`. */
+    function buildRequest(settings, messages) {
         const s = normalizeSettings(settings);
         const headers = { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' };
         if (s.apiKey) headers.Authorization = `Bearer ${s.apiKey}`;
@@ -278,7 +295,7 @@
             init: {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ model: s.model, messages: buildMessages(pgn, options), stream: true })
+                body: JSON.stringify({ model: s.model, messages, stream: true })
             }
         };
     }
@@ -294,11 +311,11 @@
      * lines are decoded live, and a plain JSON completion (a server that
      * ignored stream: true) is parsed at the end.
      */
-    async function stream(settings, pgn, options) {
+    async function stream(settings, messages, options) {
         const opts = options || {};
         const fetchImpl = opts.fetch || (typeof fetch !== 'undefined' ? fetch : null);
         if (!fetchImpl) throw new Error('fetch is not available');
-        const req = buildRequest(settings, pgn, opts);
+        const req = buildRequest(settings, messages);
         let res;
         try {
             res = await fetchImpl(req.url, Object.assign({}, req.init, { signal: opts.signal }));
@@ -380,40 +397,6 @@
         return null;
     }
 
-    function readAll(storage) {
-        const s = getStorage(storage);
-        if (!s) return {};
-        try {
-            const data = JSON.parse(s.getItem(STORAGE_KEY) || '{}');
-            return data && typeof data === 'object' ? data : {};
-        } catch (e) {
-            return {};
-        }
-    }
-
-    /** Saved commentary for a game key: { text, model, savedAt } or null. */
-    function load(key, storage) {
-        const entry = readAll(storage)[key];
-        return entry && typeof entry.text === 'string' ? entry : null;
-    }
-
-    /** Save commentary for a game key, keeping the MAX_STORED most recent games. */
-    function save(key, entry, storage) {
-        const s = getStorage(storage);
-        if (!s || !key) return false;
-        const data = readAll(s);
-        data[key] = Object.assign({}, entry, { savedAt: entry.savedAt || Date.now() });
-        const keys = Object.keys(data).sort((a, b) => (data[b].savedAt || 0) - (data[a].savedAt || 0));
-        keys.slice(MAX_STORED).forEach(k => { delete data[k]; });
-        try {
-            s.removeItem && s.removeItem('whyblunder_commentary_v1');
-            s.setItem(STORAGE_KEY, JSON.stringify(data));
-            return true;
-        } catch (e) {
-            return false;
-        }
-    }
-
     function loadSettings(storage) {
         const s = getStorage(storage);
         if (!s) return normalizeSettings({});
@@ -440,27 +423,65 @@
         if (s) { try { s.removeItem(SETTINGS_KEY); } catch (e) {} }
     }
 
-    function remove(key, storage) {
+    function readAll(storage) {
         const s = getStorage(storage);
-        if (!s) return;
-        const data = readAll(s);
-        delete data[key];
-        try { s.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+        if (!s) return {};
+        try {
+            const data = JSON.parse(s.getItem(STORAGE_KEY) || '{}');
+            return data && typeof data === 'object' ? data : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function writeAll(data, storage) {
+        const s = getStorage(storage);
+        if (!s) return false;
+        const keys = Object.keys(data).sort((a, b) => (data[b].savedAt || 0) - (data[a].savedAt || 0));
+        keys.slice(MAX_STORED).forEach(k => { delete data[k]; });
+        try {
+            if (s.removeItem) OLD_STORAGE_KEYS.forEach(k => s.removeItem(k));
+            s.setItem(STORAGE_KEY, JSON.stringify(data));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /** Saved commentary of a game: { model, savedAt, moves: { [index]: text } } or null. */
+    function loadGame(key, storage) {
+        const entry = readAll(storage)[key];
+        return entry && entry.moves && typeof entry.moves === 'object' ? entry : null;
+    }
+
+    /** Save the commentary of one move (-1 = intro), keeping the MAX_STORED most recent games. */
+    function saveMove(key, index, text, model, storage) {
+        if (!key) return false;
+        const data = readAll(storage);
+        const entry = data[key] && data[key].moves ? data[key] : { moves: {} };
+        entry.moves[index] = text;
+        if (model) entry.model = model;
+        entry.savedAt = Date.now();
+        data[key] = entry;
+        return writeAll(data, storage);
+    }
+
+    function removeMove(key, index, storage) {
+        const data = readAll(storage);
+        if (!data[key] || !data[key].moves) return;
+        delete data[key].moves[index];
+        writeAll(data, storage);
     }
 
     return {
-        USER_PROMPT,
         SYSTEM_PROMPT,
-        FORMAT_RULES,
         STORAGE_KEY,
         SETTINGS_KEY,
         DEFAULT_BASE_URL,
-        buildMessages,
-        parseHeader,
-        parse,
-        moveIndex,
-        attach,
-        forMove,
+        buildMoveMessages,
+        cleanText,
+        moveLabel,
+        movesSoFar,
         createSseDecoder,
         completionText,
         normalizeSettings,
@@ -470,8 +491,8 @@
         loadSettings,
         saveSettings,
         clearSettings,
-        load,
-        save,
-        remove
+        loadGame,
+        saveMove,
+        removeMove
     };
 }));
