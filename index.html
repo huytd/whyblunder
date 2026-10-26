@@ -4752,6 +4752,51 @@
             color: var(--lic-text-secondary);
         }
         .cc-settings-row:last-child { margin-bottom: 0; }
+        .cc-settings-menu { min-width: 280px; }
+        .cc-llm-form { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--lic-border); }
+        .cc-llm-form.is-mobile { margin-top: 0; padding-top: 0; border-top: 0; }
+        .cc-llm-form .cc-settings-row { margin-bottom: 8px; }
+        .cc-llm-heading {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-size: var(--lic-fs-base);
+            font-weight: 700;
+            color: var(--lic-text-bright);
+        }
+        .cc-llm-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-size: var(--lic-fs-sm);
+            color: var(--lic-text-primary);
+            cursor: pointer;
+        }
+        .cc-llm-check input { margin-top: 2px; accent-color: var(--cc-cta, var(--lic-blue)); }
+        .cc-llm-actions { display: flex; align-items: center; gap: 8px; }
+        .cc-llm-save {
+            border: 0;
+            border-radius: 6px;
+            padding: 4px 14px;
+            background: var(--cc-cta, var(--lic-blue));
+            color: #fff;
+            font-size: var(--lic-fs-sm);
+            font-weight: 700;
+        }
+        .cc-llm-forget {
+            border: 0;
+            background: none;
+            padding: 0;
+            font-size: var(--lic-fs-sm);
+            color: var(--lic-text-secondary);
+            text-decoration: underline;
+        }
+        .cc-llm-status { font-size: var(--lic-fs-sm); color: var(--lic-text-secondary); }
+        .cc-llm-status.is-error { color: var(--lic-red); }
+        .cc-llm-note { margin-top: 8px; font-size: var(--lic-fs-sm); color: var(--lic-text-muted); line-height: 1.4; max-width: 300px; }
+        .cc-llm-form.is-mobile .cc-llm-note { max-width: none; }
 
         /* ---------- DESKTOP (≥ 992px) ---------- */
         @media (min-width: 992px) {
@@ -5777,7 +5822,7 @@
         </button>
         <div class="cc-sidebar-spacer"></div>
         <div class="dropend">
-            <button type="button" class="cc-sidebar-item" data-bs-toggle="dropdown" aria-expanded="false" title="Settings">
+            <button type="button" class="cc-sidebar-item" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Settings">
                 <i class="bi bi-gear-fill"></i><span class="cc-sidebar-label">Settings</span>
             </button>
             <div class="dropdown-menu cc-settings-menu p-3">
@@ -5797,6 +5842,25 @@
                         <option value="200">Very Fast</option>
                     </select>
                 </label>
+                <form class="cc-llm-form" data-llm-form autocomplete="off">
+                    <div class="cc-llm-heading"><i class="bi bi-mic"></i> AI commentary</div>
+                    <label class="cc-settings-row">Base URL
+                        <input class="form-control form-control-sm select-dark" name="baseUrl" type="url" placeholder="https://api.openai.com/v1" spellcheck="false">
+                    </label>
+                    <label class="cc-settings-row">Model
+                        <input class="form-control form-control-sm select-dark" name="model" placeholder="e.g. gpt-4o-mini" spellcheck="false">
+                    </label>
+                    <label class="cc-settings-row">API key
+                        <input class="form-control form-control-sm select-dark" name="apiKey" type="password" placeholder="Not needed for a local server" spellcheck="false" autocomplete="off">
+                    </label>
+                    <label class="cc-llm-check"><input type="checkbox" name="preferAi"> Show AI commentary instead of the engine's explanation</label>
+                    <div class="cc-llm-actions">
+                        <button type="submit" class="cc-llm-save">Save</button>
+                        <button type="button" class="cc-llm-forget" data-llm-forget>Forget</button>
+                        <span class="cc-llm-status" data-llm-status role="status"></span>
+                    </div>
+                    <div class="cc-llm-note">Any OpenAI-compatible API. Kept in this browser only; the key is only sent to this URL, which must accept browser requests (CORS).</div>
+                </form>
             </div>
         </div>
     </nav>
@@ -6420,6 +6484,27 @@
                         <option value="green">Green</option>
                         <option value="blue">Blue</option>
                     </select>
+                </div>
+                <div class="mobile-opt-row">
+                <form class="cc-llm-form is-mobile" data-llm-form autocomplete="off">
+                    <div class="cc-llm-heading"><i class="bi bi-mic"></i> AI commentary</div>
+                    <label class="cc-settings-row">Base URL
+                        <input class="form-control form-control-sm select-dark" name="baseUrl" type="url" placeholder="https://api.openai.com/v1" spellcheck="false">
+                    </label>
+                    <label class="cc-settings-row">Model
+                        <input class="form-control form-control-sm select-dark" name="model" placeholder="e.g. gpt-4o-mini" spellcheck="false">
+                    </label>
+                    <label class="cc-settings-row">API key
+                        <input class="form-control form-control-sm select-dark" name="apiKey" type="password" placeholder="Not needed for a local server" spellcheck="false" autocomplete="off">
+                    </label>
+                    <label class="cc-llm-check"><input type="checkbox" name="preferAi"> Show AI commentary instead of the engine's explanation</label>
+                    <div class="cc-llm-actions">
+                        <button type="submit" class="cc-llm-save">Save</button>
+                        <button type="button" class="cc-llm-forget" data-llm-forget>Forget</button>
+                        <span class="cc-llm-status" data-llm-status role="status"></span>
+                    </div>
+                    <div class="cc-llm-note">Any OpenAI-compatible API. Kept in this browser only; the key is only sent to this URL, which must accept browser requests (CORS).</div>
+                </form>
                 </div>
                 <button type="button" id="mobileBtnReviewSummary" class="lic-btn w-100 justify-content-start py-2 px-3" data-bs-dismiss="offcanvas" style="min-height:var(--m-tap);">
                     <i class="bi bi-star-fill me-2 text-info"></i> Game Review Summary
@@ -13508,6 +13593,7 @@
             function setExplainSource(src) {
                 explainSource = src === 'ai' ? 'ai' : 'engine';
                 try { localStorage.setItem(EXPLAIN_SOURCE_KEY, explainSource); } catch (e) {}
+                syncLlmSettingsForms();
                 if (explainSource === 'ai' && commentaryConfigured() && (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error')) {
                     startCommentary();
                 }
@@ -13661,22 +13747,85 @@
                 if (commentary && commentary.controller) commentary.controller.abort();
             }
 
-            function saveCommentarySettings(form) {
-                const data = new FormData(form);
-                const settings = { baseUrl: data.get('baseUrl'), model: data.get('model'), apiKey: data.get('apiKey') };
-                if (!GameCommentary.isConfigured(settings)) {
-                    const key = form.querySelector('[name="apiKey"]');
-                    if (key && !String(settings.apiKey || '').trim()) key.focus();
-                    return;
-                }
+            // Re-render the bubble when it is on screen (analysis of a loaded game).
+            function refreshCommentaryView() {
+                if (moves.length && currentAppMode === 'analysis' && !isSelfReviewActive()) showMoveExplanation(currentMoveIndex);
+            }
+
+            // Save LLM settings (from the bubble or the Settings menu). False when incomplete.
+            function commitCommentarySettings(settings) {
+                if (!GameCommentary.isConfigured(settings)) return false;
                 GameCommentary.saveSettings(settings);
                 commentarySettingsOpen = false;
-                if (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error') {
+                if (explainSource === 'ai' && moves.length && (!commentary || commentary.key !== commentaryGameKey() || commentary.status === 'error')) {
                     commentary = null;
                     startCommentary();
                 }
-                showMoveExplanation(currentMoveIndex);
+                syncLlmSettingsForms();
+                refreshCommentaryView();
+                return true;
             }
+
+            function saveCommentarySettings(form) {
+                const data = new FormData(form);
+                const settings = { baseUrl: data.get('baseUrl'), model: data.get('model'), apiKey: data.get('apiKey') };
+                if (!commitCommentarySettings(settings)) {
+                    const field = form.querySelector(String(settings.model || '').trim() ? '[name="apiKey"]' : '[name="model"]');
+                    if (field) field.focus();
+                }
+            }
+
+            // ---- AI commentary settings in the Settings menu (desktop dropdown + mobile options) ----
+            function syncLlmSettingsForms() {
+                if (typeof GameCommentary === 'undefined') return;
+                const s = GameCommentary.loadSettings();
+                document.querySelectorAll('[data-llm-form]').forEach(form => {
+                    form.elements.baseUrl.value = s.baseUrl === GameCommentary.DEFAULT_BASE_URL && !s.model ? '' : s.baseUrl;
+                    form.elements.model.value = s.model;
+                    form.elements.apiKey.value = s.apiKey;
+                    form.elements.preferAi.checked = explainSource === 'ai';
+                });
+            }
+
+            function setLlmStatus(form, text, isError) {
+                const el = form.querySelector('[data-llm-status]');
+                if (!el) return;
+                el.textContent = text;
+                el.classList.toggle('is-error', Boolean(isError));
+                clearTimeout(el._timer);
+                if (text && !isError) el._timer = setTimeout(() => { el.textContent = ''; }, 2500);
+            }
+
+            (function initLlmSettingsForms() {
+                const forms = document.querySelectorAll('[data-llm-form]');
+                if (typeof GameCommentary === 'undefined') {
+                    forms.forEach(f => { f.hidden = true; });
+                    return;
+                }
+                forms.forEach(form => {
+                    form.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        const settings = { baseUrl: form.elements.baseUrl.value, model: form.elements.model.value, apiKey: form.elements.apiKey.value };
+                        const preferAi = form.elements.preferAi.checked;
+                        if (!String(settings.model).trim()) return setLlmStatus(form, 'Add a model name.', true);
+                        if (!GameCommentary.isConfigured(settings)) return setLlmStatus(form, 'Add an API key (or the URL of a local server).', true);
+                        if ((explainSource === 'ai') !== preferAi) {
+                            explainSource = preferAi ? 'ai' : 'engine';
+                            try { localStorage.setItem(EXPLAIN_SOURCE_KEY, explainSource); } catch (err) {}
+                        }
+                        commitCommentarySettings(settings);
+                        setLlmStatus(form, 'Saved');
+                    });
+                    form.querySelector('[data-llm-forget]').addEventListener('click', () => {
+                        GameCommentary.clearSettings();
+                        stopCommentary();
+                        syncLlmSettingsForms();
+                        refreshCommentaryView();
+                        setLlmStatus(form, 'Forgotten');
+                    });
+                });
+                syncLlmSettingsForms();
+            })();
 
             function ccSyncSidebar() {
                 document.querySelectorAll('.cc-sidebar-item[data-cc-mode]').forEach(btn => {
@@ -13772,6 +13921,7 @@
                             showMoveExplanation(currentMoveIndex);
                         } else if (act === 'clear-settings') {
                             GameCommentary.clearSettings();
+                            syncLlmSettingsForms();
                             commentarySettingsOpen = false;
                             showMoveExplanation(currentMoveIndex);
                         }

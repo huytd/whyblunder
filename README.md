@@ -124,13 +124,13 @@ Once the analysis is done, the coach bubble above the move explanation has an **
 
 The text streams into the bubble as the model writes it. The start position shows the intro and the last move shows the wrap-up. Quiet moves show the passage they belong to ("Continuing from 12. Nxd5"). Commentaries are saved in `localStorage` (`whyblunder_commentary_v1`, the 8 most recent games). **Regenerate** asks for a new one.
 
-There is still no backend: the browser calls the LLM directly. The first time you switch to **AI**, the bubble asks for:
+There is still no backend: the browser calls the LLM directly. Set it up under **Settings → AI commentary** (the sidebar on desktop, the Options sheet on mobile) before you load a game, or switch the bubble to **AI** and fill in the form it shows. You need:
 
 - **Base URL** of any OpenAI-compatible API, default `https://api.openai.com/v1` (`/chat/completions` is appended),
 - **Model**, e.g. `gpt-4o-mini`,
 - **API key** (optional for a local server such as Ollama or LM Studio).
 
-They are kept in `localStorage` (`whyblunder_llm_settings_v1`) and the key is only sent to that URL. **AI settings** in the bubble changes or forgets them. The endpoint has to accept requests from a browser (CORS). OpenAI and OpenRouter do; for Ollama, start it with `OLLAMA_ORIGINS=*`.
+They are kept in `localStorage` (`whyblunder_llm_settings_v1`) and the key is only sent to that URL. Tick **Show AI commentary instead of the engine's explanation** to have every analysis open in AI mode and write its commentary as soon as it finishes. You can change or forget the settings in either place: the Settings menu, or **AI settings** in the bubble. The endpoint has to accept requests from a browser (CORS). OpenAI and OpenRouter do; for Ollama, start it with `OLLAMA_ORIGINS=*`.
 
 ---
 
