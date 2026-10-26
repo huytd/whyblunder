@@ -32,16 +32,22 @@
         'You get the whole game annotated by a chess engine, and the engine notes for the move at hand. Those notes are',
         'your private preparation. The viewer never sees them, so do not read them out: turn them into explanations.',
         '',
-        'Be brief and get to the point. Every sentence must say something concrete about the position: no filler, no',
-        'warm-up ("Alright, let\'s see what happens here"), no questions to the viewer, no recap of earlier moves, no',
-        'repeating the same point in other words. Stick to the length you are given.',
+        'Teach, do not recap. The viewer can already read the engine\'s one-line verdict, so do not just restate it',
+        '("Nf6 was a mistake, g6 was better"). Add what it does not say: why the move works or fails, what each side is',
+        'aiming for, where the alternatives lead, and the pattern to remember. Stay concrete: every sentence says something',
+        'about the position; no filler, no warm-up ("Alright, let\'s see what happens here"), no questions to the viewer, no',
+        'recap of earlier moves. Use the length you are given: short for quiet moves, room to explain at key moments.',
         '- Say what the move does: the plan, the piece it activates, the square or weakness it targets, the threat it',
         '  makes or stops.',
-        '- For an inaccuracy, mistake or blunder, say exactly what goes wrong (the hanging piece, the tactic it allows)',
-        '  and show it with the 2 to 4 moves of the punishing line that matter ("Nf6?? and Qxf7 is mate: f7 was only',
-        '  defended by the king").',
-        '- When the notes give a better move, name it and say in one sentence what it does that the played move does not.',
-        '- When the opponent could have punished the previous move and did not, say what they missed in one sentence.',
+        '- For an inaccuracy, mistake or blunder, say exactly what goes wrong (the hanging piece, the tactic it allows, the',
+        '  weakness it creates) and play the punishing line out, saying what its key moves achieve ("Nf6?? and Qxf7 is',
+        '  mate: f7 was only defended by the king").',
+        '- For the better move and the other alternatives in the notes, explain the idea behind them and how play would go',
+        '  on (the plan, the threat, the kind of position it leads to), not only their names. When two moves are close,',
+        '  say what makes them different.',
+        '- For a great or brilliant move, say why it works and what goes wrong for the opponent after the natural replies.',
+        '- When the opponent could have punished the previous move and did not, show what they missed and why it works.',
+        '- End a key moment with a short takeaway: a pattern or rule of thumb the viewer can use in their own games.',
         '- Never quote evaluation numbers (+1.35, -0.61, #3) and never say "the engine says", "Stockfish evaluates",',
         '  "the computer gives" or "the evaluation is". Give the reason, not the verdict; when the overall picture matters,',
         '  say it in a few plain words ("White is just winning", "Black is up a piece").',
@@ -54,8 +60,8 @@
 
     const CRITICAL = ['inaccuracy', 'mistake', 'miss', 'blunder', 'brilliant', 'great'];
 
-    const STORAGE_KEY = 'whyblunder_commentary_v4'; // v4: shorter per-move commentary (v3: longer, v1/v2: one-shot text)
-    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3'];
+    const STORAGE_KEY = 'whyblunder_commentary_v5'; // v5: teaching commentary (v4: very short, v3: long, v1/v2: one-shot)
+    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3', 'whyblunder_commentary_v4'];
     const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
     const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
@@ -137,8 +143,8 @@
 
         const task = [];
         if (index < 0) {
-            task.push('The viewer is looking at the starting position. Give the intro before the first move in 1 or 2 short sentences');
-            task.push(`(at most 40 words): introduce the players (${players(info)})${info.opening ? ` and the opening (${info.opening})` : ''},`);
+            task.push('The viewer is looking at the starting position. Give the intro before the first move in 2 or 3 sentences');
+            task.push(`(at most 60 words): introduce the players (${players(info)})${info.opening ? ` and the opening (${info.opening}) with its main idea` : ''},`);
             task.push('without revealing the result or the key moments.');
         } else {
             const move = moves[index];
@@ -176,12 +182,17 @@
                 previous.forEach(p => task.push(`${p.index < 0 ? 'Intro' : moveLabel(moves, p.index)}: ${p.text.replace(/\s+/g, ' ').trim()}`));
             }
             task.push('');
-            task.push(critical
-                ? 'This is a key moment: 2 or 3 sentences, at most 60 words. What goes wrong (or why it is strong), the few moves that show it, and the better move if there is one.'
-                : 'This is a quiet move: one short sentence on the idea behind it, at most 20 words.');
+            const hasAlternatives = Boolean(notes && notes.lines && notes.lines.length);
+            if (critical) {
+                task.push('This is a key moment: 4 to 6 sentences, at most 130 words. Teach it: why the move works or fails, the line that shows it (what its key moves do), the better move or the other alternatives in the notes and how play would go on after them, and end with a one-line takeaway.');
+            } else if (key === 'book') {
+                task.push('This is an opening (book) move: one sentence on the opening idea behind it, at most 25 words.');
+            } else {
+                task.push(`This is a normal move: 1 to 3 sentences, at most 60 words, on the idea behind it${hasAlternatives ? '. If an alternative in the notes shows a different plan, say briefly what it would have aimed for' : ''}.`);
+            }
             task.push('Talk only about this move and the lines in its notes; do not mention moves that come later in the game.');
             if (index === moves.length - 1) {
-                task.push(`This is the last move of the game${info.result ? ` (result ${info.result})` : ''}. After it, wrap up the game in 1 or 2 short sentences: how it was decided and the one lesson to take away.`);
+                task.push(`This is the last move of the game${info.result ? ` (result ${info.result})` : ''}. After it, wrap up the game in 2 or 3 sentences: the turning point, how it was decided, and the main lesson to take away.`);
             }
         }
         task.push('Answer with the commentary text only.');
