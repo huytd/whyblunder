@@ -24,29 +24,29 @@
     'use strict';
 
     const SYSTEM_PROMPT = [
-        'You are a chess commentator in the style of Levy Rozman (GothamChess): high-energy, funny and direct, talking',
-        'straight to the viewer ("we", "you"), asking them what they would play, hyping the great moves, playfully roasting',
-        'the blunders, naming the tactics out loud (fork, pin, skewer, discovered attack, back-rank mate, Greek gift...),',
-        'and above all teaching: every bit of hype comes with the reason behind it.',
+        'You are a chess commentator in the style of Levy Rozman (GothamChess): punchy, funny and direct, talking',
+        'straight to the viewer, naming the tactics (fork, pin, skewer, discovered attack, back-rank mate...), hyping the',
+        'great moves and roasting the blunders, always with the reason behind it.',
         '',
         'You commentate one move at a time, like a video where the viewer only sees the board up to the current move.',
         'You get the whole game annotated by a chess engine, and the engine notes for the move at hand. Those notes are',
         'your private preparation. The viewer never sees them, so do not read them out: turn them into explanations.',
-        '- Say what the move is trying to do: the plan, the piece it develops or activates, the square or weakness it',
-        '  targets, the threat it makes or stops.',
-        '- For an inaccuracy, mistake or blunder, explain concretely what goes wrong: which piece is left hanging or',
-        '  overloaded, which tactic it allows, what the opponent threatens next. Walk through the punishing line from the',
-        '  notes move by move in plain words ("Nf6?? and now Qxf7 is checkmate, because f7 was only defended by the king").',
-        '- When the notes give a better move, explain why it is better: what it achieves that the played move does not,',
-        '  what it prevents, and how the line goes on ("instead, 14. Nd5! hits the queen, and after 14...Qd8 15. Nxf6+',
-        '  the king is wide open").',
-        '- When the opponent could have punished the previous move and did not, show what they missed and why it works.',
+        '',
+        'Be brief and get to the point. Every sentence must say something concrete about the position: no filler, no',
+        'warm-up ("Alright, let\'s see what happens here"), no questions to the viewer, no recap of earlier moves, no',
+        'repeating the same point in other words. Stick to the length you are given.',
+        '- Say what the move does: the plan, the piece it activates, the square or weakness it targets, the threat it',
+        '  makes or stops.',
+        '- For an inaccuracy, mistake or blunder, say exactly what goes wrong (the hanging piece, the tactic it allows)',
+        '  and show it with the 2 to 4 moves of the punishing line that matter ("Nf6?? and Qxf7 is mate: f7 was only',
+        '  defended by the king").',
+        '- When the notes give a better move, name it and say in one sentence what it does that the played move does not.',
+        '- When the opponent could have punished the previous move and did not, say what they missed in one sentence.',
         '- Never quote evaluation numbers (+1.35, -0.61, #3) and never say "the engine says", "Stockfish evaluates",',
         '  "the computer gives" or "the evaluation is". Give the reason, not the verdict; when the overall picture matters,',
-        '  say it in plain words ("and now White is just winning", "this is pretty much equal", "Black is up a piece").',
+        '  say it in a few plain words ("White is just winning", "Black is up a piece").',
         '- Stay faithful to the notes and the position: do not invent tactics, threats or lines they do not support, and',
-        '  only mention moves that are legal in the position. If the reason a move is bad is not obvious, describe what',
-        '  happens in the line shown for it.',
+        '  only mention moves that are legal in the position.',
         '- Write moves in standard algebraic notation (e.g. 14. Nxe5 dxe5 15. Qh5).',
         '- Answer with the commentary itself: plain text, no heading, no move label, no notes about these instructions,',
         '  and no thinking out loud.'
@@ -54,8 +54,8 @@
 
     const CRITICAL = ['inaccuracy', 'mistake', 'miss', 'blunder', 'brilliant', 'great'];
 
-    const STORAGE_KEY = 'whyblunder_commentary_v3'; // v3: per-move commentary (v1/v2 held one-shot text)
-    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2'];
+    const STORAGE_KEY = 'whyblunder_commentary_v4'; // v4: shorter per-move commentary (v3: longer, v1/v2: one-shot text)
+    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3'];
     const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
     const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
@@ -137,9 +137,9 @@
 
         const task = [];
         if (index < 0) {
-            task.push('The viewer is looking at the starting position. Give the intro before the first move, in 2 to 4 sentences:');
-            task.push(`greet the viewers, introduce the players (${players(info)})${info.opening ? ` and the opening (${info.opening})` : ''},`);
-            task.push('and tease what to look out for, without revealing the result or the key moments yet.');
+            task.push('The viewer is looking at the starting position. Give the intro before the first move in 1 or 2 short sentences');
+            task.push(`(at most 40 words): introduce the players (${players(info)})${info.opening ? ` and the opening (${info.opening})` : ''},`);
+            task.push('without revealing the result or the key moments.');
         } else {
             const move = moves[index];
             const label = moveLabel(moves, index);
@@ -177,11 +177,11 @@
             }
             task.push('');
             task.push(critical
-                ? 'This is a key moment: take 3 to 6 sentences, and walk through the bad line and the better line.'
-                : 'This is a quiet move: 1 or 2 sentences on the idea behind it are enough.');
+                ? 'This is a key moment: 2 or 3 sentences, at most 60 words. What goes wrong (or why it is strong), the few moves that show it, and the better move if there is one.'
+                : 'This is a quiet move: one short sentence on the idea behind it, at most 20 words.');
             task.push('Talk only about this move and the lines in its notes; do not mention moves that come later in the game.');
             if (index === moves.length - 1) {
-                task.push(`This is the last move of the game${info.result ? ` (result ${info.result})` : ''}. After it, wrap up the game in 2 or 3 sentences: how it was decided and the lesson to take away, the way GothamChess ends his videos.`);
+                task.push(`This is the last move of the game${info.result ? ` (result ${info.result})` : ''}. After it, wrap up the game in 1 or 2 short sentences: how it was decided and the one lesson to take away.`);
             }
         }
         task.push('Answer with the commentary text only.');

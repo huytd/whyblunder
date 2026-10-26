@@ -795,20 +795,21 @@ console.log("Testing GameCommentary...");
     assert.ok(task.includes('- How the opponent can punish it: 4. Qxf7#'));
     assert.ok(task.includes('- Lines from the position before the move: 3... g6'), 'The better line is spelled out for this move');
     assert.ok(task.includes('3. Qh5: The Wayward Queen!'), 'What was said about the previous moves carries the story on');
-    assert.ok(/key moment/.test(task) && /walk through the bad line and the better line/.test(task), 'Critical moves get room for the lines');
+    assert.ok(/key moment: 2 or 3 sentences, at most 60 words/.test(task), 'Critical moves get a little room for the line, no more');
+    assert.ok(/Be brief and get to the point/.test(blunder[0].content) && /no filler/.test(blunder[0].content), 'The model is told to be concise');
     assert.ok(/do not mention moves that come later/.test(task), 'No spoilers');
-    assert.ok(/quiet move: 1 or 2 sentences/.test(ask(1)[1].content), 'Quiet moves stay short');
+    assert.ok(/quiet move: one short sentence on the idea behind it, at most 20 words/.test(ask(1)[1].content), 'Quiet moves stay short');
 
     const mate = ask(6)[1].content;
     assert.ok(mate.includes('The board now shows 4. Qxf7#'), 'Check and mate signs are kept');
     assert.ok(mate.includes('- 4. Qxf7# punishes the previous move, 3... Nf6 (a blunder).'), 'A punishment is a key moment');
-    assert.ok(/last move of the game \(result 1-0\)\. After it, wrap up the game/.test(mate), 'The last move wraps the game up');
+    assert.ok(/last move of the game \(result 1-0\)\. After it, wrap up the game in 1 or 2 short sentences/.test(mate), 'The last move wraps the game up, briefly');
     const missed = game.slice(0, 6).concat([mk(4, true, 'Nc3')]);
     assert.ok(GameCommentary.buildMoveMessages({ pgn, moves: missed, index: 6 })[1].content.includes('could have been punished with 4. Qxf7#, and 4. Nc3 misses that'), 'A missed punishment is pointed out');
 
     const intro = ask(-1)[1].content;
-    assert.ok(/Give the intro before the first move/.test(intro) && intro.includes('White: Alice (1500), Black: Bob') && intro.includes('Wayward Queen Attack'));
-    assert.ok(/without revealing the result/.test(intro));
+    assert.ok(/Give the intro before the first move in 1 or 2 short sentences/.test(intro) && intro.includes('White: Alice (1500), Black: Bob') && intro.includes('Wayward Queen Attack'));
+    assert.ok(/at most 40 words/.test(intro) && /without revealing the result/.test(intro));
 
     // cleanText: what the model says, minus thinking and labels
     assert.strictEqual(GameCommentary.cleanText('<think>Let me see</think>\n**3... Nf6??**\nOh no, not Nf6!'), 'Oh no, not Nf6!');
@@ -839,13 +840,13 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(GameCommentary.completionText({ choices: [{ message: { content: 'Hi' } }] }), 'Hi');
 
     // Per-move storage keeps the most recent games, and drops the old one-shot caches
-    const store = { data: { whyblunder_commentary_v2: '{}' }, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
-    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v3', 'One-shot commentaries are not reused');
+    const store = { data: { whyblunder_commentary_v2: '{}', whyblunder_commentary_v3: '{}' }, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
+    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v4', 'Older, longer commentaries are not reused');
     GameCommentary.saveMove('gA', -1, 'Intro', 'm', store);
     GameCommentary.saveMove('gA', 5, 'Blunder!', 'm', store);
     assert.deepStrictEqual(GameCommentary.loadGame('gA', store).moves, { '-1': 'Intro', 5: 'Blunder!' });
     assert.strictEqual(GameCommentary.loadGame('gA', store).model, 'm');
-    assert.ok(!('whyblunder_commentary_v2' in store.data), 'The old cache is removed');
+    assert.ok(!('whyblunder_commentary_v2' in store.data) && !('whyblunder_commentary_v3' in store.data), 'The old caches are removed');
     GameCommentary.removeMove('gA', 5, store);
     assert.deepStrictEqual(GameCommentary.loadGame('gA', store).moves, { '-1': 'Intro' });
     for (let i = 0; i < 10; i++) { store.data[GameCommentary.STORAGE_KEY] = JSON.stringify(Object.assign(JSON.parse(store.data[GameCommentary.STORAGE_KEY]), { ['g' + i]: { moves: { 0: 't' }, savedAt: 1000 + i } })); }
