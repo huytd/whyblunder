@@ -825,7 +825,7 @@ console.log("Testing GameCommentary...");
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), true, `Verdict: ${t}`));
     ['Safe and sound, White castles.', 'Nf6?? and the king is not safe at all.', 'The safest move here is Be2, and it keeps everything protected.', ''].forEach(t =>
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), false, `Commentary: ${t}`));
-    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(index, true, true\)/.test(indexHtml), 'A verdict is retried once, without context');
+    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(index, true, true, background\)/.test(indexHtml), 'A verdict is retried once, without context');
     assert.ok(indexHtml.includes('if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(c.key, i);'), 'Saved verdicts are dropped');
 
     // SSE decoding (split across chunks)
@@ -882,7 +882,11 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('await GameCommentary.stream(settings, messages, {'), 'The browser calls the LLM directly');
     assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ pgn: c.pgn, moves, index, gameInfo: currentGameInfo || {}, previous })'), 'One request per move, with the annotated PGN as context');
     assert.ok(indexHtml.includes("if (!c.pgn) c.pgn = buildAnnotatedPgn('all');"), 'The PGN context is built once per game (stable prefix)');
-    assert.ok(/if \(entry\.status === 'done' && \(index === currentMoveIndex \|\| index === currentMoveIndex \+ 1\)\) \{[\s\S]{0,160}requestMoveCommentary\(next\)/.test(indexHtml), 'The next move is prefetched');
+    assert.ok(/function pumpCommentaryQueue\(\) \{[\s\S]{0,900}commentaryReadingOrder\(\)\.find\(i => !c\.entries\[i\]\)[\s\S]{0,260}requestMoveCommentary\(next, false, false, true\)/.test(indexHtml), 'The whole game is written ahead, in reading order, by one background request');
+    assert.ok(indexHtml.includes('if (next === undefined || commentaryLive(c.entries[next - 1])) return;'), 'The writer waits for the move before, whose text is context');
+    assert.ok(indexHtml.includes('for (let i = Math.max(-1, index - 3); i < index; i++) {'), 'Context is only the moves just before');
+    assert.ok(/if \(entry\.status === 'error'\) c\.paused = true;\s*scheduleCommentaryRender\(\);\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Each finished move starts the next; an error pauses the writer');
+    assert.ok(/function maybeAutoStartCommentary\(\) \{\s*if \(commentaryActive\(\)\) pumpCommentaryQueue\(\);/.test(indexHtml), 'Writing starts as soon as the analysis is done, in AI mode');
     assert.ok(!indexHtml.includes('id="ccCommentaryBtn"') && !indexHtml.includes('data-commentary-card'), 'No separate commentary UI');
     assert.ok(!/Math\.random/.test(fs.readFileSync(require('path').join(__dirname, 'js', 'game-commentary.js'), 'utf8')), 'Commentary parsing must be deterministic');
 }
