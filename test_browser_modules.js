@@ -819,6 +819,14 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(GameCommentary.cleanText('**3. Qh5**\nThe queen', true), 'The queen');
     assert.strictEqual(GameCommentary.cleanText('The queen comes out', true), 'The queen comes out', 'Plain text streams straight away');
 
+    // Safety-classifier verdicts are not commentary
+    ['User Safety: safe', 'User Safety: safe\nResponse Safety: safe', '{"User Safety": "safe", "Response Safety": "safe"}', 'Safety: Safe\nCategories: None', 'unsafe\nS1', 'safe'].forEach(t =>
+        assert.strictEqual(GameCommentary.isClassifierVerdict(t), true, `Verdict: ${t}`));
+    ['Safe and sound, White castles.', 'Nf6?? and the king is not safe at all.', 'The safest move here is Be2, and it keeps everything protected.', ''].forEach(t =>
+        assert.strictEqual(GameCommentary.isClassifierVerdict(t), false, `Commentary: ${t}`));
+    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(index, true, true\)/.test(indexHtml), 'A verdict is retried once, without context');
+    assert.ok(indexHtml.includes('if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(c.key, i);'), 'Saved verdicts are dropped');
+
     // SSE decoding (split across chunks)
     const dec = GameCommentary.createSseDecoder();
     let out = dec.push('data: {"choices":[{"delta":{"content":"Hel"}}]}\n\ndata: {"choices":[{"de');

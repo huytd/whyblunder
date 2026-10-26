@@ -193,6 +193,22 @@
     }
 
     /**
+     * True when the "commentary" is really a content-safety classifier's
+     * verdict, e.g. NVIDIA NemoGuard's "User Safety: safe / Response Safety:
+     * safe" (a guard model picked as the model, or a guardrail on the endpoint
+     * replacing the answer). Such text must not be shown, saved, or fed back
+     * as "what you already said", or the model starts copying it.
+     */
+    function isClassifierVerdict(text) {
+        const t = String(text || '').trim();
+        if (!t) return false;
+        if (/^[{"\s]*(user|response|prompt)[ _]safety"?\s*:/i.test(t)) return true;
+        if (/^\s*safety\s*:\s*(safe|unsafe|controversial)\b/i.test(t)) return true;
+        // Llama Guard style: "safe", or "unsafe" plus category codes on the next line
+        return t.length < 40 && /^(safe|unsafe)[\s.]*(\n|$)/i.test(t);
+    }
+
+    /**
      * The model's answer, ready to show: no <think> blocks (and nothing while
      * one is still open), no leading move label or heading, trimmed. With
      * `partial` (text still streaming), a first line that may turn out to be
@@ -480,6 +496,7 @@
         DEFAULT_BASE_URL,
         buildMoveMessages,
         cleanText,
+        isClassifierVerdict,
         moveLabel,
         movesSoFar,
         createSseDecoder,

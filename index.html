@@ -13624,7 +13624,10 @@
                 const saved = c.key ? GameCommentary.loadGame(c.key) : null;
                 if (saved) {
                     c.model = saved.model || '';
-                    Object.keys(saved.moves).forEach(i => { c.entries[i] = { text: saved.moves[i], status: 'done' }; });
+                    Object.keys(saved.moves).forEach(i => {
+                        if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(c.key, i);
+                        else c.entries[i] = { text: saved.moves[i], status: 'done' };
+                    });
                 }
             }
 
@@ -13677,7 +13680,7 @@
                 const live = commentaryLive(entry);
                 let body;
                 if (entry && entry.status === 'error') body = `<div class="gc-error">${escapeHtml(entry.error)}</div>`;
-                else if (entry && entry.text) body = commentaryTextHtml(entry.text);
+                else if (entry && entry.text && !GameCommentary.isClassifierVerdict(entry.text)) body = commentaryTextHtml(entry.text);
                 else if (entry && entry.status === 'stopped') body = '<div class="gc-muted">Stopped.</div>';
                 else body = commentaryWaitingHtml(entry);
                 if (!entry) return body; // about to be requested: no actions yet
@@ -13745,7 +13748,9 @@
                 return true;
             }
 
-            async function requestMoveCommentary(index, force) {
+            const COMMENTARY_VERDICT_ERROR = 'The model answered with a content-safety verdict ("User Safety: safe") instead of commentary. Check that the Model in AI settings is a chat model, not a guard/safety model, and that no guardrail on the endpoint replaces the answer.';
+
+            async function requestMoveCommentary(index, force, retry) {
                 if (!commentaryActive() || index < -1 || index >= moves.length) return;
                 const c = commentaryState();
                 const existing = c.entries[index];
@@ -13760,6 +13765,7 @@
                     const e = c.entries[i];
                     if (e && e.text && e.status === 'done') previous.unshift({ index: i, text: e.text });
                 }
+                if (retry) previous.length = 0; // a retry goes without context, in case it was copied from there
                 const messages = GameCommentary.buildMoveMessages({ pgn: c.pgn, moves, index, gameInfo: currentGameInfo || {}, previous });
                 const entry = { text: '', status: 'loading', error: '', thinking: 0, startedAt: Date.now(), controller: new AbortController() };
                 c.entries[index] = entry;
@@ -13782,6 +13788,11 @@
                     entry.text = GameCommentary.cleanText(raw);
                     entry.status = entry.text ? 'done' : 'error';
                     if (!entry.text) entry.error = 'The model returned no commentary for this move.';
+                    if (GameCommentary.isClassifierVerdict(entry.text)) {
+                        entry.status = 'error';
+                        entry.error = COMMENTARY_VERDICT_ERROR;
+                        entry.verdict = true;
+                    }
                 } catch (e) {
                     const aborted = entry.controller.signal.aborted;
                     entry.status = aborted ? 'stopped' : 'error';
@@ -13789,6 +13800,10 @@
                 }
                 entry.controller = null;
                 if (commentary !== c || c.entries[index] !== entry) return;
+                if (entry.verdict && !retry) {
+                    delete c.entries[index];
+                    return requestMoveCommentary(index, true, true);
+                }
                 if (entry.status === 'done') GameCommentary.saveMove(c.key, index, entry.text, c.model);
                 if (index === currentMoveIndex) scheduleCommentaryRender();
                 // Prefetch the next move while the player reads this one
