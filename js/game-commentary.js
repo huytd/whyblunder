@@ -4,9 +4,10 @@
  * Commentary is written one move at a time, like a video where the viewer
  * only sees the board up to the current move. Each request is small: the
  * game header and that move's facts (the position, the moves so far, its
- * engine notes from PgnExport.moveNotes, what was already said about the
- * previous moves), so it can be sent as soon as that move is analyzed,
- * while the engine is still working on the rest of the game.
+ * engine notes from PgnExport.moveNotes), so it can be sent as soon as that
+ * move is analyzed, while the engine is still working on the rest of the
+ * game. Moves do not depend on each other's text, so any number of them
+ * can be written at once.
  *
  * linkMoves() finds the moves the model wrote ("1...e6", "2.Nf3 d5",
  * "Qxf7#") and checks them with chess.js, so the UI can make them clickable.
@@ -129,7 +130,6 @@
      *   pgn       optional: an annotated PGN of the whole game to send as context
      *   index     move to comment on, -1 for the intro
      *   gameInfo  { white, black, white_elo, black_elo, opening, eco, result }
-     *   previous  [{ index, text }] what was already said, most recent last
      */
     function buildMoveMessages(o) {
         const moves = o.moves || [];
@@ -178,12 +178,6 @@
             }
             if (punishes) {
                 task.push(`- ${label} punishes the previous move, ${moveLabel(moves, index - 1)} (a ${qualityKey(prev)}).`);
-            }
-            const previous = (o.previous || []).filter(p => p && p.text);
-            if (previous.length) {
-                task.push('');
-                task.push('What you already said (most recent last). Carry the story on; do not repeat it:');
-                previous.forEach(p => task.push(`${p.index < 0 ? 'Intro' : moveLabel(moves, p.index)}: ${p.text.replace(/\s+/g, ' ').trim()}`));
             }
             task.push('');
             const hasAlternatives = Boolean(notes && notes.lines && notes.lines.length);
@@ -368,8 +362,7 @@
      * True when the "commentary" is really a content-safety classifier's
      * verdict, e.g. NVIDIA NemoGuard's "User Safety: safe / Response Safety:
      * safe" (a guard model picked as the model, or a guardrail on the endpoint
-     * replacing the answer). Such text must not be shown, saved, or fed back
-     * as "what you already said", or the model starts copying it.
+     * replacing the answer). Such text must not be shown or saved.
      */
     function isClassifierVerdict(text) {
         const t = String(text || '').trim();

@@ -13615,8 +13615,8 @@
             // Written one move at a time with small requests (the game header and that move's
             // facts), so it can start while the engine is still analyzing: analyzeGame's hooks
             // (startLiveCommentary / liveCommentaryMove) hand over each move as soon as it is
-            // analyzed, and the moves are written in game order, two at a time, each with what was
-            // already said about the moves just before. Once the game is on screen
+            // analyzed, and the moves are written in game order, two at a time (each request stands
+            // on its own: no text of other moves in it). Once the game is on screen
             // (pumpCommentaryQueue) the move on screen goes first, then the rest in reading order. Shown in the coach bubble when
             // its Engine / AI toggle is on AI; moves in the text open on the board.
             const EXPLAIN_SOURCE_KEY = 'whyblunder_explain_source'; // 'engine' | 'ai'
@@ -13916,8 +13916,8 @@
 
             // Writes the commentary ahead of time while AI mode is on: the move on screen first
             // (it may be a jump), then every free request slot walks through the game in order,
-            // each move once it is analyzed. Two moves are written at once, so a move does not wait
-            // for the one before it: its context is whatever is already written of the moves before.
+            // each move once it is analyzed. Two moves are written at once: a move does not need the
+            // text of the one before it.
             // Paused by an error or Stop, until Regenerate, new settings or the toggle resume it.
             function pumpCommentaryQueue() {
                 const c = (commentary && commentary.live) ? commentary : commentaryState();
@@ -13967,14 +13967,7 @@
                 if (!background && !commentaryMakeRoom(c, [currentMoveIndex])) return;
 
                 const settings = GameCommentary.loadSettings();
-                // What was already said about the moves just before, so the story carries on
-                const previous = [];
-                for (let i = Math.max(-1, index - 3); i < index; i++) {
-                    const e = c.entries[i];
-                    if (e && e.text && e.status === 'done') previous.push({ index: i, text: e.text });
-                }
-                if (retry) previous.length = 0; // a retry goes without context, in case it was copied from there
-                const messages = GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo, previous });
+                const messages = GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo });
                 const entry = { text: '', status: 'loading', error: '', thinking: 0, startedAt: Date.now(), controller: new AbortController(), background: Boolean(background) };
                 c.entries[index] = entry;
                 c.model = settings.model;

@@ -778,8 +778,8 @@ console.log("Testing GameCommentary...");
 
     // One small request per move: the game header and the move's own facts (no whole-game PGN)
     const pgn = PgnExport.build(game, { gameInfo: info, lines: 'all' });
-    const ask = (index, previous) => GameCommentary.buildMoveMessages({ moves: game, index, gameInfo: info, previous });
-    const blunder = ask(5, [{ index: 4, text: 'The Wayward Queen!' }]);
+    const ask = (index) => GameCommentary.buildMoveMessages({ moves: game, index, gameInfo: info });
+    const blunder = ask(5);
     assert.strictEqual(blunder.length, 2);
     assert.strictEqual(blunder[0].role, 'system');
     assert.ok(/Levy Rozman \(GothamChess\)/.test(blunder[0].content), 'The commentary is in the GothamChess style');
@@ -800,7 +800,7 @@ console.log("Testing GameCommentary...");
     assert.ok(task.includes(`Position before the move (FEN): ${notes.fenBefore}`));
     assert.ok(task.includes('- How the opponent can punish it: 4. Qxf7#'));
     assert.ok(task.includes('- Lines from the position before the move: 3... g6'), 'The better line is spelled out for this move');
-    assert.ok(task.includes('3. Qh5: The Wayward Queen!'), 'What was said about the previous moves carries the story on');
+    assert.ok(!/already said/.test(task) && !/already said/.test(GameCommentary.buildMoveMessages({ moves: game, index: 5, gameInfo: info, previous: [{ index: 4, text: 'The Wayward Queen!' }] })[1].content), 'A move stands on its own: no text of other moves');
     assert.ok(/key moment: 4 to 6 sentences, at most 130 words\. Teach it/.test(task), 'Key moments get room to teach');
     assert.ok(/the better move or the other alternatives in the notes and how play would go on after them/.test(task) && /one-line takeaway/.test(task), 'Key moments go through the alternatives and end with a takeaway');
     assert.ok(/Teach, do not recap/.test(blunder[0].content) && /do not just restate it/.test(blunder[0].content), 'The model adds to the engine verdict instead of repeating it');
@@ -877,7 +877,7 @@ console.log("Testing GameCommentary...");
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), true, `Verdict: ${t}`));
     ['Safe and sound, White castles.', 'Nf6?? and the king is not safe at all.', 'The safest move here is Be2, and it keeps everything protected.', ''].forEach(t =>
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), false, `Commentary: ${t}`));
-    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(c, index, true, true, background\)/.test(indexHtml), 'A verdict is retried once, without context');
+    assert.ok(/if \(entry\.verdict && !retry\) \{[\s\S]{0,120}requestMoveCommentary\(c, index, true, true, background\)/.test(indexHtml), 'A verdict is retried once');
     assert.ok(indexHtml.includes('if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(key, i);'), 'Saved verdicts are dropped');
 
     // SSE decoding (split across chunks)
@@ -933,7 +933,7 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Settings"'), 'Typing in the Settings menu does not close it');
     assert.ok(/function commitCommentarySettings\(settings\) \{[\s\S]{0,600}syncLlmSettingsForms\(\);/.test(indexHtml), 'The bubble form and the Settings menu share one save path');
     assert.ok(indexHtml.includes('await GameCommentary.stream(settings, messages, {'), 'The browser calls the LLM directly');
-    assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo, previous })'), 'One small request per move, no PGN');
+    assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo })'), 'One small request per move, no PGN, no text of other moves');
     assert.ok(!indexHtml.includes("buildAnnotatedPgn('all')"), 'The whole-game PGN is no longer sent');
     assert.ok(/function pumpCommentaryQueue\(\) \{[\s\S]{0,900}for \(const next of commentaryReadingOrder\(c, onScreen\)\) \{\s*if \(Object\.values\(c\.entries\)\.filter\(commentaryLive\)\.length >= COMMENTARY_MAX_ACTIVE\) return;[\s\S]{0,200}requestMoveCommentary\(c, next, false, false, true\)/.test(indexHtml), 'The whole game is written ahead, in order, by every free request slot');
     assert.ok(indexHtml.includes('const COMMENTARY_MAX_ACTIVE = 2;'), 'At most 2 requests in flight');
@@ -954,7 +954,6 @@ console.log("Testing GameCommentary...");
     assert.ok(/function openCommentaryMove\(el\) \{\s*if \(el\.dataset\.gcGame !== undefined\) \{\s*goToMove/.test(indexHtml) && indexHtml.includes('jumpToVariationStep(parseInt(el.dataset.moveIdx, 10), el.dataset.type, step, false)'), 'A game move goes to the game, another line opens in the line viewer');
     assert.ok(indexHtml.includes("lt.startsWith('commentary-') ? 'Commentary Line'"), 'Commentary lines get their own badge');
     assert.ok(/return GameCommentary\.markdownToHtml\(raw\.trim\(\)\)\.replace\(placeholder, \(m, i\) => buttons\[Number\(i\)\] \|\| ''\);/.test(indexHtml), 'The commentary is rendered as markdown, with the move buttons put back in');
-    assert.ok(indexHtml.includes('for (let i = Math.max(-1, index - 3); i < index; i++) {'), 'Context is only the moves just before');
     assert.ok(/if \(entry\.status === 'error'\) c\.paused = true;\s*scheduleCommentaryRender\(\);\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Each finished move starts the next; an error pauses the writer');
     assert.ok(/function maybeAutoStartCommentary\(\) \{\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Whatever is left is written once the analysis is done');
     assert.ok(!indexHtml.includes('id="ccCommentaryBtn"') && !indexHtml.includes('data-commentary-card'), 'No separate commentary UI');
