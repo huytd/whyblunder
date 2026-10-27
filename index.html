@@ -4712,20 +4712,33 @@
         .gc-muted b { font-style: normal; color: #312e2b; }
         .gc-timer { font-style: normal; font-variant-numeric: tabular-nums; }
         .gc-progress { font-variant-numeric: tabular-nums; }
-        .gc-move {
+        /* Moves in the commentary: the engine bubble's .diag-highlight-move look, clickable */
+        .cc-coach-bubble .gc-move,
+        .cc-coach-bubble .gc-move.var-move-btn {
             display: inline;
-            border: 0;
-            border-radius: 4px;
-            padding: 0 3px;
-            margin: 0 -1px;
-            background: rgba(92, 134, 173, 0.14);
-            color: #3d6a94;
-            font: inherit;
+            padding: 1px 5px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.08);
+            color: #1a1a18;
+            font-family: monospace;
+            font-size: inherit;
             font-weight: 700;
+            line-height: inherit;
             white-space: nowrap;
             cursor: pointer;
+            box-shadow: none;
         }
-        .gc-move:hover { background: rgba(92, 134, 173, 0.28); color: #2c4f70; }
+        .cc-coach-bubble .gc-move:hover,
+        .cc-coach-bubble .gc-move.var-move-btn:hover { background: rgba(0, 0, 0, 0.14); color: #1a1a18; border-color: rgba(0, 0, 0, 0.22); }
+        /* The move on the board (a game move, or the step of the line being shown) */
+        .cc-coach-bubble .gc-move.active,
+        .cc-coach-bubble .gc-move.var-move-btn.active {
+            background: rgba(98, 153, 36, 0.22);
+            color: #2f5410;
+            border-color: rgba(98, 153, 36, 0.65);
+            box-shadow: 0 0 6px rgba(98, 153, 36, 0.25);
+        }
         .gc-outro { margin-top: 6px; padding-top: 6px; border-top: 1px solid #e6e4e1; }
         .gc-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
         .gc-link { border: 0; background: none; padding: 0; color: #5c86ad; text-decoration: underline; font-size: 0.8125rem; }
@@ -9945,6 +9958,7 @@
             }
 
             function getVariationData(moveIndex, lineType = 'better') {
+                if (typeof lineType === 'string' && lineType.startsWith('commentary-')) return getCommentaryVariationData(moveIndex, lineType);
                 if (moveIndex < 0 || moveIndex >= moves.length) return null;
                 const move = moves[moveIndex];
                 if (!move || !move.analysis) return null;
@@ -10195,7 +10209,7 @@
                         variationTypeBadge.textContent = lt === 'explore' ? 'Your Line'
                             : lt === 'threat' ? 'Opponent Threat'
                             : lt.startsWith('alt-') ? 'Alternative Line'
-                            : lt === 'commentary' ? 'Commentary Line'
+                            : lt.startsWith('commentary-') ? 'Commentary Line'
                             : lt === 'idea' ? 'Main Line'
                             : (activeVariation.isRefutation ? 'Punishing Line' : 'Recommended Line');
                     }
@@ -10219,6 +10233,8 @@
                 if (btnVarNext) btnVarNext.disabled = (stepIndex >= varMoves.length - 1);
 
                 // Update highlight on move buttons in the Move Analysis panel
+                // (a game move in the AI commentary is not on the board while a line is shown)
+                document.querySelectorAll('.gc-move[data-gc-game].active').forEach(btn => btn.classList.remove('active'));
                 document.querySelectorAll(`.var-move-btn[data-move-idx="${moveIndex}"][data-type="${lineType}"]`).forEach(btn => {
                     const step = parseInt(btn.dataset.step);
                     if (step === stepIndex) {
@@ -13737,10 +13753,20 @@
                     : { segments: [{ type: 'text', text: String(text || '') }], lines: [] };
                 commentaryShownLines = linked.lines;
                 // Markdown first (moves stand in as placeholders), then the move buttons go back in
+                // Same look as the moves in the engine bubble; a line's moves are .var-move-btn steps,
+                // so jumpToVariationStep highlights the one on the board (click or ←/→), like the engine lines
                 const buttons = [];
                 const raw = linked.segments.map(s => {
                     if (s.type !== 'move') return s.text;
-                    buttons.push(`<button type="button" class="gc-move" data-gc-move data-gc-line="${s.line}" data-gc-step="${s.step}"${s.gameIndex !== null ? ` data-gc-game="${s.gameIndex}"` : ''} title="${s.gameIndex !== null ? 'Go to this move of the game' : 'Show this line on the board'}">${escapeHtml(s.text)}</button>`);
+                    const label = escapeHtml(s.text);
+                    if (s.gameIndex !== null) {
+                        const onBoard = !isInVariationMode && s.gameIndex === currentMoveIndex;
+                        buttons.push(`<button type="button" class="gc-move${onBoard ? ' active' : ''}" data-gc-move data-gc-game="${s.gameIndex}" title="Go to this move of the game">${label}</button>`);
+                    } else {
+                        const lineType = commentaryLineType(s.line, linked.lines[s.line]);
+                        const onBoard = isInVariationMode && activeVariation && activeVariation.lineType === lineType && activeVariation.stepIndex === s.step;
+                        buttons.push(`<button type="button" class="gc-move var-move-btn var-btn-better${onBoard ? ' active' : ''}" data-gc-move data-move-idx="${currentMoveIndex}" data-type="${escapeHtml(lineType)}" data-step="${s.step}" title="Show this line on the board">${label}</button>`);
+                    }
                     return `${GameCommentary.PLACEHOLDER_OPEN}${buttons.length - 1}${GameCommentary.PLACEHOLDER_CLOSE}`;
                 }).join('');
                 const placeholder = new RegExp(`${GameCommentary.PLACEHOLDER_OPEN}(\\d+)${GameCommentary.PLACEHOLDER_CLOSE}`, 'g');
@@ -13752,22 +13778,32 @@
                     goToMove(parseInt(el.dataset.gcGame, 10));
                     return;
                 }
-                const line = commentaryShownLines[parseInt(el.dataset.gcLine, 10)];
-                if (!line) return;
+                const step = parseInt(el.dataset.step, 10);
+                if (el.dataset.type && !isNaN(step)) jumpToVariationStep(parseInt(el.dataset.moveIdx, 10), el.dataset.type, step, false);
+            }
+
+            // Line type of a line in the commentary on screen: its index, plus its moves so that
+            // a line from another (or regenerated) text is never mistaken for it.
+            function commentaryLineType(i, line) {
+                return `commentary-${i}-${line.sans.join('_')}`;
+            }
+
+            // getVariationData for 'commentary-…' lines (the lines of the commentary on screen).
+            function getCommentaryVariationData(moveIndex, lineType) {
+                const i = parseInt(lineType.split('-')[1], 10);
+                const line = commentaryShownLines[i];
+                if (!line || commentaryLineType(i, line) !== lineType) return null;
                 const varMoves = parsePrincipalVariation(line.sans.join(' '), line.startFen);
-                if (!varMoves.length) return;
-                stopVariationAnimationTimer();
-                activeVariation = {
-                    moveIndex: currentMoveIndex,
+                if (!varMoves.length) return null;
+                return {
+                    moveIndex,
                     // who plays the line's first move (the outcome card names the sides from it)
                     move: { is_white: line.startFen.split(' ')[1] === 'w', move: varMoves[0].san, evaluation: '', analysis: {} },
-                    lineType: 'commentary',
+                    lineType,
                     isRefutation: false,
                     startingFen: line.startFen,
-                    moves: varMoves,
-                    stepIndex: 0
+                    moves: varMoves
                 };
-                jumpToVariationStep(currentMoveIndex, 'commentary', Math.min(parseInt(el.dataset.gcStep, 10) || 0, varMoves.length - 1), false);
             }
 
             function commentaryLive(entry) {

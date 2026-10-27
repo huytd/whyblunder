@@ -942,10 +942,15 @@ console.log("Testing GameCommentary...");
     assert.ok(/function resetCommentary\(\) \{[\s\S]{0,300}if \(commentary && commentary\.key === key\) \{\s*commentary\.live = false;/.test(indexHtml), 'The commentary written during the analysis is adopted, not restarted');
     assert.ok(/catch \(error\) \{\s*stopLiveCommentary\(\);/.test(indexHtml), 'A failed or cancelled analysis stops the live commentary');
     // Clickable moves
-    assert.ok(indexHtml.includes('GameCommentary.linkMoves(text, { moves: c.moves, index })') && indexHtml.includes('class="gc-move" data-gc-move'), 'Moves in the commentary are buttons');
+    assert.ok(indexHtml.includes('GameCommentary.linkMoves(text, { moves: c.moves, index })') && indexHtml.includes("class=\"gc-move${onBoard ? ' active' : ''}\" data-gc-move data-gc-game="), 'Moves in the commentary are buttons');
+    assert.ok(indexHtml.includes('class="gc-move var-move-btn var-btn-better${onBoard ? \' active\' : \'\'}" data-gc-move data-move-idx="${currentMoveIndex}" data-type="${escapeHtml(lineType)}" data-step="${s.step}"'), 'A line\'s moves are .var-move-btn steps, highlighted like the engine lines (click or arrows)');
+    assert.ok(/\.cc-coach-bubble \.gc-move,\s*\.cc-coach-bubble \.gc-move\.var-move-btn \{[\s\S]{0,200}background: rgba\(0, 0, 0, 0\.08\);[\s\S]{0,80}font-family: monospace;/.test(indexHtml), 'Same look as the moves in the engine bubble');
+    assert.ok(/\.cc-coach-bubble \.gc-move\.var-move-btn\.active \{/.test(indexHtml), 'The move on the board is highlighted');
+    assert.ok(indexHtml.includes("document.querySelectorAll('.gc-move[data-gc-game].active').forEach(btn => btn.classList.remove('active'));"), 'While a line is shown, the game move is not highlighted');
+    assert.ok(indexHtml.includes("if (typeof lineType === 'string' && lineType.startsWith('commentary-')) return getCommentaryVariationData(moveIndex, lineType);"), 'Commentary lines go through getVariationData like the engine lines');
     assert.ok(/const moveBtn = e\.target\.closest\('\[data-gc-move\]'\);\s*if \(moveBtn\) return openCommentaryMove\(moveBtn\);/.test(indexHtml), 'Clicking a move opens it');
-    assert.ok(/function openCommentaryMove\(el\) \{\s*if \(el\.dataset\.gcGame !== undefined\) \{\s*goToMove/.test(indexHtml) && indexHtml.includes("jumpToVariationStep(currentMoveIndex, 'commentary',"), 'A game move goes to the game, another line opens in the line viewer');
-    assert.ok(indexHtml.includes("lt === 'commentary' ? 'Commentary Line'"), 'Commentary lines get their own badge');
+    assert.ok(/function openCommentaryMove\(el\) \{\s*if \(el\.dataset\.gcGame !== undefined\) \{\s*goToMove/.test(indexHtml) && indexHtml.includes('jumpToVariationStep(parseInt(el.dataset.moveIdx, 10), el.dataset.type, step, false)'), 'A game move goes to the game, another line opens in the line viewer');
+    assert.ok(indexHtml.includes("lt.startsWith('commentary-') ? 'Commentary Line'"), 'Commentary lines get their own badge');
     assert.ok(/return GameCommentary\.markdownToHtml\(raw\.trim\(\)\)\.replace\(placeholder, \(m, i\) => buttons\[Number\(i\)\] \|\| ''\);/.test(indexHtml), 'The commentary is rendered as markdown, with the move buttons put back in');
     assert.ok(indexHtml.includes('for (let i = Math.max(-1, index - 3); i < index; i++) {'), 'Context is only the moves just before');
     assert.ok(/if \(entry\.status === 'error'\) c\.paused = true;\s*scheduleCommentaryRender\(\);\s*pumpCommentaryQueue\(\);/.test(indexHtml), 'Each finished move starts the next; an error pauses the writer');
