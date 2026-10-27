@@ -13699,9 +13699,10 @@
                 return typeof GameCommentary !== 'undefined' && moves.length > 0 && currentAppMode === 'analysis' && !isSelfReviewActive();
             }
 
-            // The article can be written (also behind the self review gate).
+            // The article can be written: as soon as an LLM is set up, whatever tab is selected, so it
+            // is ready when the player opens it (also behind the self review gate).
             function commentaryCanWrite(c) {
-                return Boolean(c) && explainSource === 'ai' && currentAppMode !== 'coach' && commentaryConfigured();
+                return Boolean(c) && currentAppMode !== 'coach' && commentaryConfigured();
             }
 
             function explainSourceToggleHtml() {
@@ -13774,7 +13775,7 @@
                 commentaryState();
             }
 
-            // After an analysis (and whenever AI mode or the settings change): write the article
+            // After an analysis (and when the tab or the settings change): write the article
             // unless it is written, being written, stopped or failed (those wait for the player).
             function maybeAutoStartCommentary() {
                 const c = commentaryState();

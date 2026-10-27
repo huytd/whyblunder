@@ -937,6 +937,7 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('GameCommentary.buildArticleMessages({ moves: c.moves, gameInfo: c.gameInfo })'), 'One request for the whole game');
     assert.ok(!indexHtml.includes('buildMoveMessages') && !indexHtml.includes('pumpCommentaryQueue') && !indexHtml.includes('startLiveCommentary'), 'No per-move commentary left');
     assert.ok(indexHtml.includes('const result = await browserDoctor.analyzeGame(pgn, onProgress, analysisDepth);'), 'The article waits for the whole analysis');
+    assert.ok(/function commentaryCanWrite\(c\) \{\s*return Boolean\(c\) && currentAppMode !== 'coach' && commentaryConfigured\(\);/.test(indexHtml), 'The article is written right after the analysis, whatever tab is selected and behind the self review');
     assert.ok(/function maybeAutoStartCommentary\(\) \{\s*const c = commentaryState\(\);\s*if \(commentaryCanWrite\(c\) && !c\.status\) requestArticle\(c\);/.test(indexHtml), 'Written once the analysis is done, unless written, stopped or failed');
     assert.ok(/function resetCommentary\(\) \{[\s\S]{0,300}if \(commentary && commentary\.key === key\) \{/.test(indexHtml), 'The same game loaded again keeps its article');
     // Clickable moves
