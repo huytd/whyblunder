@@ -136,7 +136,7 @@ There is still no backend: the browser calls the LLM directly. Set it up under *
 - **Model**, e.g. `gpt-4o-mini`,
 - **API key** (optional for a local server such as Ollama or LM Studio).
 
-They are kept in `localStorage` (`whyblunder_llm_settings_v1`) and the key is only sent to that URL. Tick **Show AI commentary instead of the engine's explanation** to have every analysis open in AI mode and write its commentary as soon as it finishes. You can change or forget the settings in either place: the Settings menu, or **AI settings** in the bubble. The endpoint has to accept requests from a browser (CORS). OpenAI and OpenRouter do; for Ollama, start it with `OLLAMA_ORIGINS=*`.
+They are kept in `localStorage` (`whyblunder_llm_settings_v1`) and the key is only sent to that URL. Tick **Show AI commentary instead of the engine's explanation** to have every analysis open in AI mode and write its commentary as soon as it finishes. Change or forget them later under **Settings → AI commentary**. The bubble only asks for them the first time. The endpoint has to accept requests from a browser (CORS). OpenAI and OpenRouter do; for Ollama, start it with `OLLAMA_ORIGINS=*`.
 
 ---
 

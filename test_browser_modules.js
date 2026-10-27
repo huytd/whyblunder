@@ -928,6 +928,7 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('html += ccCoachLineHtml(move, false, { bodyHtml, footHtml, headExtraHtml: sourceToggle'), 'The commentary reuses the coach bubble, with the Engine / AI toggle in its head');
     assert.ok(indexHtml.includes('data-gc-source="${src}"'), 'The bubble toggles between engine analysis and AI commentary');
     assert.ok(indexHtml.includes('<form class="gc-settings" data-gc-settings'), 'The LLM settings are edited in the bubble');
+    assert.ok(indexHtml.includes("const progress = commentaryProgressHtml(c);") && !indexHtml.includes('data-gc-action="settings"') && !indexHtml.includes('<span>by ${escapeHtml(c.model)}</span>'), 'The bubble actions hold no model name and no settings link');
     assert.strictEqual((indexHtml.match(/data-llm-form autocomplete="off"/g) || []).length, 2, 'The LLM settings are in the desktop Settings menu and the mobile options, before any game is loaded');
     assert.ok(indexHtml.includes('data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Settings"'), 'Typing in the Settings menu does not close it');
     assert.ok(/function commitCommentarySettings\(settings\) \{[\s\S]{0,600}syncLlmSettingsForms\(\);/.test(indexHtml), 'The bubble form and the Settings menu share one save path');
