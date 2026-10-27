@@ -850,6 +850,28 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(GameCommentary.cleanText('12... Nxd5 is a great move.'), '12... Nxd5 is a great move.');
     assert.strictEqual(GameCommentary.cleanText('```mark', true), '', 'A fence still being written is held back');
     assert.strictEqual(GameCommentary.cleanText('# The queen comes out', true), '# The queen comes out', 'The text streams straight away');
+    // Reasoning written into the answer (no reasoning field) never reaches the page
+    const leaked = 'We need to write an article with title, intro, then sections per chapter.\n\nGiven list:\n1. d4 (White)\n\n# London Calling\n\nWhite opened 1. d4.';
+    assert.strictEqual(GameCommentary.cleanText(leaked), '# London Calling\n\nWhite opened 1. d4.', 'Planning before the title is dropped');
+    assert.strictEqual(GameCommentary.cleanText('We need to write an article with title, intro.', true), '', 'Planning is held back while it streams');
+    assert.strictEqual(GameCommentary.cleanText('Let me draft: # Draft\nold\n\n# Final Title\nBody'), '# Final Title\nBody', 'A drafted article in the reasoning gives way to the final one');
+    assert.strictEqual(GameCommentary.cleanText('analysisWe need to write it. Use "## The opening".assistantfinal# London Calling\n\nBody'), '# London Calling\n\nBody', 'gpt-oss channels without their special tokens');
+    assert.strictEqual(GameCommentary.cleanText('analysisWe need to write', true), '');
+    assert.strictEqual(GameCommentary.cleanText('<|channel|>analysis<|message|>We need to...<|end|><|start|>assistant<|channel|>final<|message|># Title\n\nBody'), '# Title\n\nBody', 'gpt-oss Harmony channels');
+    assert.strictEqual(GameCommentary.cleanText('<|channel|>analysis<|message|>We need to...', true), '');
+    assert.strictEqual(GameCommentary.cleanText('<thinking>plan</thinking>\n# Title\nBody'), '# Title\nBody');
+    assert.strictEqual(GameCommentary.cleanText('<reasoning>still going', true), '');
+    assert.strictEqual(GameCommentary.cleanText('\u25c1think\u25b7hmm\u25c1/think\u25b7# T\nB'), '# T\nB', "Kimi's think markers");
+    assert.strictEqual(GameCommentary.cleanText('Analysis of a classic: 1. e4 wins.'), 'Analysis of a classic: 1. e4 wins.', 'An article that starts with "Analysis" is kept');
+    assert.strictEqual(GameCommentary.cleanText('# Title\n\nWe need to talk about 3... Bg4.'), '# Title\n\nWe need to talk about 3... Bg4.', 'After the title, nothing is cut');
+    assert.strictEqual(GameCommentary.cleanText("Legal's Mate\n\nWhite played 1. e4."), "Legal's Mate\n\nWhite played 1. e4.", 'An article without a "# " title is kept');
+    ['We need to write an article', 'The user wants an article', "Let's parse moves", 'Okay, so the game', 'I need to write the article'].forEach(t =>
+        assert.strictEqual(GameCommentary.looksLikeReasoning(t), true, `Reasoning: ${t}`));
+    ['# Title', 'White opened with 1. d4.', 'Legal\'s Mate', 'Letting the queen go was a mistake.'].forEach(t =>
+        assert.strictEqual(GameCommentary.looksLikeReasoning(t), false, `Article: ${t}`));
+    assert.ok(indexHtml.includes("if (!c.text && text.trim()) c.thinking = text.length;"), 'Held-back reasoning shows as thinking');
+    assert.ok(/else if \(!\/\^#\[ \\t\]\/m\.test\(c\.text\) && GameCommentary\.looksLikeReasoning\(c\.text\)\) \{\s*c\.status = 'error';\s*c\.error = COMMENTARY_REASONING_ERROR;/.test(indexHtml), 'Reasoning only, no article: an error, not saved');
+    assert.ok(indexHtml.includes("const text = saved ? GameCommentary.cleanText(saved.text) : '';"), 'Saved articles are cleaned on load');
 
     // linkMoves: the moves the model wrote, checked on the board
     const example = "e5 stakes a central claim. 1...e6 would have set up a French-adjacent structure after 2.Nf3 d5 3.exd5 exd5 4.d4 Nf6 5.Bd3 c5 6.c3, while 1...c5 invites 2.Nf3 d6 3.Bb5+ Bd7 4.Bxd7+ Nxd7 5.O-O Ngf6 6.Nc3. White's 2.a3 can test it, but the pawn on e5 holds and Qh5 is far away. Ke4 is nonsense.";
@@ -906,7 +928,7 @@ console.log("Testing GameCommentary...");
     ['Safe and sound, White castles.', 'Nf6?? and the king is not safe at all.', 'The safest move here is Be2, and it keeps everything protected.', ''].forEach(t =>
         assert.strictEqual(GameCommentary.isClassifierVerdict(t), false, `Commentary: ${t}`));
     assert.ok(/if \(c\.verdict && !retry\) \{[\s\S]{0,80}return requestArticle\(c, true\);/.test(indexHtml), 'A verdict is retried once');
-    assert.ok(indexHtml.includes('if (saved && GameCommentary.isClassifierVerdict(saved.text)) GameCommentary.removeArticle(key);'), 'A saved verdict is dropped');
+    assert.ok(indexHtml.includes("const bad = saved && (!text || GameCommentary.isClassifierVerdict(text) ||") && indexHtml.includes('if (bad) GameCommentary.removeArticle(key);'), 'A saved verdict (or reasoning) is dropped');
 
     // SSE decoding (split across chunks)
     const dec = GameCommentary.createSseDecoder();

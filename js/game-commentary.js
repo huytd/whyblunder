@@ -624,20 +624,60 @@
         return t.length < 40 && /^(safe|unsafe)[\s.]*(\n|$)/i.test(t);
     }
 
+    // Reasoning some models write into the answer itself, not in a reasoning field
+    const THINK_TAGS = ['think', 'thinking', 'reasoning', 'reflection'];
+    const HARMONY_FINAL = '<|channel|>final<|message|>'; // gpt-oss: the answer after the "analysis" channel
+    // Planning out loud: "We need to write...", "The user wants...", "Let's parse the moves"
+    const REASONING_START = /^(?:we (?:need|must|have|should) to|we must\b|we need\b|the user (?:wants|asks|is asking)|let(?:'s| us| me)\b|i (?:need|have|should|will|'ll) (?:to )?(?:write|start|produce|craft|figure)|okay,? (?:so|let|the|we|i)\b|alright,? (?:so|let|the|we|i)\b|first,? (?:i|we|let)\b|so,? (?:the|we|i)\b)/i;
+
+    /** True when the text reads like a model planning its answer rather than the answer. */
+    function looksLikeReasoning(text) {
+        return REASONING_START.test(String(text || '').trim());
+    }
+
     /**
-     * The model's answer, ready to show: no <think> blocks (and nothing while
-     * one is still open), no "Here's the article:" preamble, no ```markdown
-     * fence around it, trimmed. With `partial` (text still streaming), an
-     * opening fence still being written is held back.
+     * The model's answer, ready to show: no reasoning (<think>/<thinking>/
+     * <reasoning> blocks, Kimi's ◁think▷, gpt-oss "analysis" channels with or
+     * without their special tokens, and nothing while one is still open), no
+     * "Here's the article:" preamble, no ```markdown fence around it, trimmed.
+     * The article starts with its "# " title, so anything written before the
+     * last title line is reasoning too. With `partial` (text still streaming),
+     * text that still reads like reasoning, or an opening fence still being
+     * written, is held back.
      */
     function cleanText(text, partial) {
         let t = String(text || '').replace(/\r\n?/g, '\n');
-        t = t.replace(/<think>[\s\S]*?<\/think>/gi, '');
-        const open = t.search(/<think>/i);
-        if (open >= 0) t = t.slice(0, open);
+        // gpt-oss (Harmony): keep the final channel; an analysis channel alone is still thinking
+        const fin = t.lastIndexOf(HARMONY_FINAL);
+        if (fin >= 0) t = t.slice(fin + HARMONY_FINAL.length);
+        else if (/<\|channel\|>/.test(t)) t = '';
+        t = t.replace(/<\|[a-z_]+\|>/gi, '');
+        // The same with the special tokens stripped: "analysis We need to... assistantfinal# Title"
+        const harmony = t.match(/^\s*analysis\s*/i);
+        if (harmony) {
+            const finals = [...t.matchAll(/assistant\s*final/gi)];
+            const rest = t.slice(harmony[0].length);
+            if (finals.length) t = t.slice(finals[finals.length - 1].index + finals[finals.length - 1][0].length);
+            else if (looksLikeReasoning(rest)) t = partial ? '' : rest;
+        }
+        THINK_TAGS.forEach(tag => {
+            t = t.replace(new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, 'gi'), '');
+            const open = t.search(new RegExp(`<${tag}>`, 'i'));
+            if (open >= 0) t = t.slice(0, open);
+        });
+        t = t.replace(/\u25c1think\u25b7[\s\S]*?\u25c1\/think\u25b7/g, '');
+        const kimi = t.indexOf('\u25c1think\u25b7');
+        if (kimi >= 0) t = t.slice(0, kimi);
         t = t.replace(/^\s+/, '');
         t = t.replace(/^(?:sure|okay|ok|alright|here(?:'s| is))\b[^\n]{0,80}:[ \t]*\n/i, '');
         t = t.replace(/^\s*```(?:markdown|md)?[ \t]*\n/i, '').replace(/\n```\s*$/, '');
+        // Whatever comes before the article's title is the model thinking out loud
+        if (!/^#[ \t]/.test(t)) {
+            const titles = [...t.matchAll(/^#[ \t]+\S.*$/gm)];
+            if (titles.length) t = t.slice(titles[titles.length - 1].index);
+            else if (partial && looksLikeReasoning(t)) return '';
+            t = t.replace(/\n```\s*$/, '');
+        }
         if (partial && /^\s*`{1,3}[a-z]*$/i.test(t)) return '';
         return t.trim();
     }
@@ -994,6 +1034,7 @@
         gameEnding,
         articleLength,
         cleanText,
+        looksLikeReasoning,
         isClassifierVerdict,
         linkMoves,
         markdownToHtml,

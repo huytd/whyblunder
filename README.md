@@ -128,6 +128,8 @@ One request covers the whole game: the players, the opening and the result, then
 
 The engine's annotations are the model's private notes, not something to read out. It explains what each key move is trying to do, what goes wrong and why the better move is better, and plays the lines out. It never quotes evaluation numbers or says "Stockfish says", and when the overall picture matters it says it in plain words ("White is just winning"). It must not invent tactics the analysis doesn't support. It writes every move with its number ("14... Qd7"), so the moves can be linked.
 
+Some reasoning models (gpt-oss and others, depending on the provider) write their thinking into the answer instead of a separate reasoning field. That thinking is never shown: `<think>`-style blocks and gpt-oss channels are removed, anything before the article's `# ` title is dropped, and while it streams the panel says the model is thinking. If a model sends only its reasoning and no article, you get an error with **Try again** instead.
+
 Once an LLM is set up, the article is requested as soon as the analysis finishes, whichever tab is selected and while the self review is still open, so it is usually ready by the time you open the Article tab. It streams in. **Stop** stops it, **Regenerate** writes a new one, and after an error **Try again** retries it. Articles are saved in `localStorage` (`whyblunder_commentary_v8`, the 8 most recent games). Copying the article keeps its moves.
 
 Markdown in the answer is rendered: bold, italics, headings, bullet and numbered lists, quotes, inline code and rules. Move numbers like "1. e4 e5" at the start of a line stay chess, not a list. Any HTML the model writes is shown as text, and links keep only their text.

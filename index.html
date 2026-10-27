@@ -13764,8 +13764,11 @@
             function newCommentaryState(key) {
                 const c = { key, model: '', moves, gameInfo: currentGameInfo || {}, text: '', status: '', error: '', thinking: 0, startedAt: 0, controller: null };
                 const saved = key ? GameCommentary.loadArticle(key) : null;
-                if (saved && GameCommentary.isClassifierVerdict(saved.text)) GameCommentary.removeArticle(key);
-                else if (saved) Object.assign(c, { text: saved.text, model: saved.model || '', status: 'done' });
+                // Articles saved before the reasoning was cleaned out are cleaned on load
+                const text = saved ? GameCommentary.cleanText(saved.text) : '';
+                const bad = saved && (!text || GameCommentary.isClassifierVerdict(text) || (!/^#[ \t]/m.test(text) && GameCommentary.looksLikeReasoning(text)));
+                if (bad) GameCommentary.removeArticle(key);
+                else if (saved) Object.assign(c, { text, model: saved.model || '', status: 'done' });
                 return c;
             }
 
@@ -13993,6 +13996,7 @@
                 (window.requestAnimationFrame || setTimeout)(renderCommentaryBody);
             }
 
+            const COMMENTARY_REASONING_ERROR = 'The model only sent its reasoning, not the article. Try again, or pick a model without reasoning (or with reasoning turned off) in Settings → AI commentary.';
             const COMMENTARY_VERDICT_ERROR = 'The model answered with a content-safety verdict ("User Safety: safe") instead of an article. Check that the Model in Settings → AI commentary is a chat model, not a guard/safety model, and that no guardrail on the endpoint replaces the answer.';
 
             async function requestArticle(c, retry) {
@@ -14009,6 +14013,8 @@
                         onText: (text) => {
                             if (c.controller !== controller) return;
                             c.text = GameCommentary.cleanText(text, true);
+                            // Reasoning written into the answer is held back: show it as thinking
+                            if (!c.text && text.trim()) c.thinking = text.length;
                             c.status = 'streaming';
                             scheduleCommentaryRender();
                         },
@@ -14022,6 +14028,10 @@
                     c.text = GameCommentary.cleanText(raw);
                     c.status = c.text ? 'done' : 'error';
                     if (!c.text) c.error = 'The model returned no article.';
+                    else if (!/^#[ \t]/m.test(c.text) && GameCommentary.looksLikeReasoning(c.text)) {
+                        c.status = 'error';
+                        c.error = COMMENTARY_REASONING_ERROR;
+                    }
                     if (GameCommentary.isClassifierVerdict(c.text)) {
                         c.status = 'error';
                         c.error = COMMENTARY_VERDICT_ERROR;
