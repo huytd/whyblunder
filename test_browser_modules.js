@@ -935,8 +935,9 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('await GameCommentary.stream(settings, messages, {'), 'The browser calls the LLM directly');
     assert.ok(indexHtml.includes('GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo, previous })'), 'One small request per move, no PGN');
     assert.ok(!indexHtml.includes("buildAnnotatedPgn('all')"), 'The whole-game PGN is no longer sent');
-    assert.ok(/function pumpCommentaryQueue\(\) \{[\s\S]{0,900}commentaryReadingOrder\(c, onScreen\)\.find\(i => !c\.entries\[i\]\)[\s\S]{0,200}requestMoveCommentary\(c, next, false, false, true\)/.test(indexHtml), 'The whole game is written ahead, in order, by one background request');
-    assert.ok(indexHtml.includes('if (next === undefined || !commentaryReady(c, next) || commentaryLive(c.entries[next - 1])) return;'), 'The writer waits for the analysis of the move, and for the move before (its text is context)');
+    assert.ok(/function pumpCommentaryQueue\(\) \{[\s\S]{0,900}for \(const next of commentaryReadingOrder\(c, onScreen\)\) \{\s*if \(Object\.values\(c\.entries\)\.filter\(commentaryLive\)\.length >= COMMENTARY_MAX_ACTIVE\) return;[\s\S]{0,200}requestMoveCommentary\(c, next, false, false, true\)/.test(indexHtml), 'The whole game is written ahead, in order, by every free request slot');
+    assert.ok(indexHtml.includes('const COMMENTARY_MAX_ACTIVE = 2;'), 'At most 2 requests in flight');
+    assert.ok(indexHtml.includes('if (!commentaryReady(c, next)) return; // in order: wait for the engine') && !indexHtml.includes('commentaryLive(c.entries[next - 1])'), 'The writers wait for the analysis of the move, not for the text of the move before');
     assert.ok(/function commentaryReady\(c, i\) \{\s*return i < 0 \|\| \(Boolean\(c\.ready\[i\]\) && \(i === 0 \|\| Boolean\(c\.ready\[i - 1\]\)\)\);/.test(indexHtml), 'A move is ready once it and the move before are analyzed');
     // Live: the commentary starts while the engine analyzes
     assert.ok(/browserDoctor\.analyzeGame\(pgn, onProgress, analysisDepth, null, \{\s*onStart: startLiveCommentary,\s*onMove: liveCommentaryMove\s*\}\)/.test(indexHtml), 'Analysis hands each move to the commentary as soon as it is analyzed');

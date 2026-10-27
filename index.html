@@ -13615,12 +13615,12 @@
             // Written one move at a time with small requests (the game header and that move's
             // facts), so it can start while the engine is still analyzing: analyzeGame's hooks
             // (startLiveCommentary / liveCommentaryMove) hand over each move as soon as it is
-            // analyzed, and the moves are written in game order, each with what was said about
-            // the moves just before. Once the game is on screen (pumpCommentaryQueue) the move on
-            // screen goes first, then the rest in reading order. Shown in the coach bubble when
+            // analyzed, and the moves are written in game order, two at a time, each with what was
+            // already said about the moves just before. Once the game is on screen
+            // (pumpCommentaryQueue) the move on screen goes first, then the rest in reading order. Shown in the coach bubble when
             // its Engine / AI toggle is on AI; moves in the text open on the board.
             const EXPLAIN_SOURCE_KEY = 'whyblunder_explain_source'; // 'engine' | 'ai'
-            const COMMENTARY_MAX_ACTIVE = 2;  // requests in flight at once (move on screen + background writer)
+            const COMMENTARY_MAX_ACTIVE = 2;  // requests in flight at once (move on screen and writers ahead share them)
             const COMMENTARY_DWELL_MS = 250;  // skimming through moves does not fire a request per move
             try { if (localStorage.getItem(EXPLAIN_SOURCE_KEY) === 'ai') explainSource = 'ai'; } catch (e) {}
 
@@ -13915,8 +13915,9 @@
             }
 
             // Writes the commentary ahead of time while AI mode is on: the move on screen first
-            // (it may be a jump), plus one background request walking through the game in order,
-            // each move once it is analyzed and the move before it is written (its text is context).
+            // (it may be a jump), then every free request slot walks through the game in order,
+            // each move once it is analyzed. Two moves are written at once, so a move does not wait
+            // for the one before it: its context is whatever is already written of the moves before.
             // Paused by an error or Stop, until Regenerate, new settings or the toggle resume it.
             function pumpCommentaryQueue() {
                 const c = (commentary && commentary.live) ? commentary : commentaryState();
@@ -13924,11 +13925,12 @@
                 const onScreen = commentaryOnScreen(c);
                 if (onScreen && !c.entries[currentMoveIndex] && commentaryReady(c, currentMoveIndex)) requestMoveCommentary(c, currentMoveIndex);
                 if (c.paused) return;
-                const live = Object.values(c.entries).filter(commentaryLive);
-                if (live.length >= COMMENTARY_MAX_ACTIVE || live.some(e => e.background)) return;
-                const next = commentaryReadingOrder(c, onScreen).find(i => !c.entries[i]);
-                if (next === undefined || !commentaryReady(c, next) || commentaryLive(c.entries[next - 1])) return;
-                requestMoveCommentary(c, next, false, false, true);
+                for (const next of commentaryReadingOrder(c, onScreen)) {
+                    if (Object.values(c.entries).filter(commentaryLive).length >= COMMENTARY_MAX_ACTIVE) return;
+                    if (c.entries[next]) continue;
+                    if (!commentaryReady(c, next)) return; // in order: wait for the engine
+                    requestMoveCommentary(c, next, false, false, true);
+                }
             }
 
             function resumeCommentaryQueue() {
@@ -14017,7 +14019,7 @@
                 pumpCommentaryQueue();
             }
 
-            // Stop writing: the move on screen and the background writer.
+            // Stop writing: the move on screen and the writers ahead.
             function stopCommentary() {
                 if (!commentary) return;
                 commentary.paused = true;
