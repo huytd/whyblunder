@@ -783,32 +783,41 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(article[0].role, 'system');
     const sys = article[0].content;
     assert.ok(/Levy Rozman \(GothamChess\)/.test(sys), 'The article is in the GothamChess style');
-    assert.ok(/one article about a whole game/.test(sys) && /split into chapters, in the order it was played/.test(sys), 'The model writes an article from the game in chapters');
-    assert.ok(/a title on the first line \("# \.\.\."\)/.test(sys) && /one section per chapter, in the order given/.test(sys) && /ending\s+with its move range/.test(sys) && /"## Lessons" with 2 to 4 bullet points/.test(sys), 'Title, a section per chapter with its move range, lessons');
+    assert.ok(/one article about one game/.test(sys) && /annotated move list, split into chapters: every move in the order it was played, with the side that played it/.test(sys), 'The model writes the article from the annotated game, in chapters');
+    assert.ok(/Start with a title \("# \.\.\."\)/.test(sys) && /each starting with the heading given for it, word for word/.test(sys) && /"## Lessons" section with 2 to 4 bullet points/.test(sys), 'Title, the given chapter headings, lessons');
+    assert.ok(!/Knight That Never Came Back/i.test(sys), 'No sample heading for the model to copy');
     // Game flow: in order, no spoilers, played vs not played kept apart, the side named
-    assert.ok(/goes through the game in the\s+order it was played/.test(sys) && /Never mention a move before its turn comes: no spoilers/.test(sys), 'The article follows the game');
-    assert.ok(/Keep what was played apart from what could have been/.test(sys) && /then come back to the game \("In the game, White replied 15\. Qh5"\)/.test(sys), 'Alternatives are told apart from the game');
-    assert.ok(/Name the side for every move you bring up/.test(sys), 'The reader knows who is moving');
-    assert.ok(/Write every move with its number/.test(sys) && /"14\.\.\. Qd7"/.test(sys), 'Numbered moves, so they can be linked');
-    assert.ok(/Never quote evaluation numbers/.test(sys) && /"Stockfish evaluates"/.test(sys) && /"the engine notes"/.test(sys) && /refer to them/.test(sys), 'The model explains instead of reading out engine verdicts');
-    assert.ok(/Teach, do not recap/.test(sys) && /no filler/.test(sys) && /no thinking out/.test(sys), 'To the point, no meta-talk');
+    assert.ok(/A section only\s+talks about the moves of its chapter, in the order they were played/.test(sys) && /Do not give away anything that\s+happens later/.test(sys), 'The article follows the game');
+    assert.ok(/then go back to the game \("In the game, White replied 15\. Qh5"\)/.test(sys) && /as something that did not happen/.test(sys), 'Alternatives are told apart from the game');
+    assert.ok(/"14\. Nf3" \(one dot\) is White's move, "14\.\.\. Nf6" \(three dots\) is Black's/.test(sys) && /Name the side\s+every time/.test(sys), 'The reader knows who is moving');
+    assert.ok(/Write every move with its number/.test(sys) && /Only use moves from the move list/.test(sys), 'Numbered moves from the game, so they can be linked');
+    assert.ok(/Never write numbers that measure the position/.test(sys) && /never mention an\s+engine, a computer, an evaluation, notes, the move list or a FEN/.test(sys), 'No evaluations, no engine, no FEN');
+    assert.ok(/no thinking out/.test(sys) && /Do not invent tactics/.test(sys), 'No meta-talk, nothing made up');
     const task = article[1].content;
     assert.ok(task.startsWith('Game: White: Alice (1500), Black: Bob. Opening: Wayward Queen Attack. Result: 1-0.'), 'A short game header');
-    assert.ok(!/PGN:/.test(task) && !task.includes('[Event'), 'No PGN in the request');
-    assert.ok(task.includes('The game in 1 chapter, in the order it was played. Write one "## " section per chapter, in this order:\n\nChapter 1: Opening, moves 1-4\n- Moves: 1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# 1-0\n- Key moments: 3... Nf6, 4. Qxf7#'), 'The game as chapters, with their moves (no ?? glyphs) and key moments');
-    assert.ok(task.includes('[Chapter 1, moves 1-4]\n3... Nf6 (Black): Blunder'), 'The notes are grouped by chapter, in game order');
-    assert.ok(task.includes('Final position (FEN): r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4'));
-    assert.ok(task.includes('\n3... Nf6 (Black): Blunder\n') && task.includes(`- Position before the move (FEN): ${notes.fenBefore}`), 'Each key moment with its position');
-    assert.ok(task.includes('- How the opponent can punish it (not necessarily played): 4. Qxf7#') && task.includes('- Lines from the position before the move (alternatives, not played): 3... g6'), 'The punishment and the better line, marked as not played');
-    assert.ok(task.includes('\n4. Qxf7# (White): ') && task.includes('- It punishes the previous move, 3... Nf6 (a blunder).'), 'A punishment is a key moment');
-    assert.ok(!task.includes('2. Bc4 (White)') && !task.includes('1. e4 (White)'), 'Quiet moves get no notes');
-    assert.ok(/Go through the chapters in order and cover every key moment where it happens/.test(task) && /Write about 350 words\. Answer with the article only\./.test(task), 'Every key moment, at a length that fits the game');
+    assert.ok(!/PGN:|FEN|\[%eval|\[Event/.test(task), 'No PGN, no FEN, no eval tags in the request');
+    assert.ok(!/[+-]?\d+\.\d+\b/.test(task.replace(/\b\d+\.(\.\.)?\s/g, '')), 'No evaluation numbers in the request');
+    assert.ok(task.includes('The game as an annotated move list, in 1 chapter. Write one section per chapter, in this order, under these headings:\n\n## The opening (moves 1-4)\n1. e4 (White): good\n1... e5 (Black): good\n2. Bc4 (White): good\n2... Nc6 (Black): good\n3. Qh5 (White): good\n3... Nf6 (Black): BLUNDER (??) - KEY MOMENT\n'), 'Every move on its own line, with its side and verdict, under the chapter heading');
+    assert.ok(task.includes('    What it does: g6 was best. Nf6 allows mate on f7.\n    Better: 3... g6 4. Qf3 Nf6 (not played)\n    The punishment: 4. Qxf7# (played in the game)\n'), 'Under a key moment: what it does, the better line and the punishment, played or not');
+    assert.ok(task.includes('4. Qxf7# (White): good - KEY MOMENT\n    It punishes 3... Nf6, a blunder by Black.'), 'A punishment is a key moment');
+    const goodWithReply = game.map((m, i) => (i === 4 ? Object.assign({}, m, { quality: 'great', detailed_quality: 'great', analysis: { refutation_variation: ['g6'] } }) : m));
+    assert.ok(!/The punishment: 3\.\.\. g6/.test(ask(goodWithReply)[1].content) && ask(goodWithReply)[1].content.includes('3. Qh5 (White): GREAT MOVE (!) - KEY MOMENT'), 'Only a mistake has a punishment (a good move just has a reply)');
+    assert.ok(task.includes('How it ended: White delivered checkmate with 4. Qxf7#. Material at the end: White has queen, 2 rooks, 2 bishops, 2 knights and 8 pawns; Black has queen, 2 rooks, 2 bishops, 2 knights and 7 pawns.'), 'How the game ended, in words');
+    assert.ok(/Cover every key moment where it happens/.test(task) && /Write about 350 words\. Answer with the article only\./.test(task), 'Every key moment, at a length that fits the game');
     const missed = game.slice(0, 6).concat([mk(4, true, 'Nc3')]);
-    assert.ok(ask(missed)[1].content.includes('it could have been punished with 4. Qxf7#, and 4. Nc3 misses that'), 'A missed punishment is pointed out');
+    const missedTask = ask(missed)[1].content;
+    assert.ok(missedTask.includes('    The punishment: 4. Qxf7# (not played)\n4. Nc3 (White): good - KEY MOMENT\n    It misses the punishment of 3... Nf6: 4. Qxf7# (not played).'), 'A missed punishment is pointed out');
+    assert.ok(missedTask.includes('How it ended: Black resigned (or ran out of time) after 4. Nc3.'));
     assert.deepStrictEqual(GameCommentary.keyMoments(missed, PgnExport).map(k => k.index), [5, 6]);
     const quiet = game.slice(0, 5);
-    assert.ok(/found no mistakes and no standout moves: tell the story of the plans, chapter by chapter/.test(ask(quiet, { white: 'A', black: 'B' })[1].content), 'A clean game still gets an article');
+    assert.ok(/There are no mistakes and no standout moves: tell the story of the plans, chapter by chapter/.test(ask(quiet, { white: 'A', black: 'B' })[1].content), 'A clean game still gets an article');
     assert.ok(ask(quiet, { white: 'A', black: 'B' })[1].content.includes('Result: unknown'));
+    // The analysis in plain words: no numbers, no engine, no verdict word
+    assert.strictEqual(GameCommentary.plainNote('[%eval 1.94] Mistake. g6 hands the advantage to White. Better was Nf6. If Black ignored it, the evaluation would be +2.46 instead of +0.12.'), 'g6 hands the advantage to White. Better was Nf6.');
+    assert.strictEqual(GameCommentary.plainNote('[%eval -0.40] Blunder. g6 was best (-0.40). After 6.Bxf7+, Black gets mated (7.Nd5#).'), 'g6 was best. After 6.Bxf7+, Black gets mated (7.Nd5#).');
+    assert.strictEqual(GameCommentary.plainNote('[%eval 0.30]'), '');
+    assert.strictEqual(GameCommentary.shortLine('3... Nf6 { [%eval 0.21] Better: 4.Nc3 } 4. Nc3 Be7 5. d4 exd4 6. Nxd4 O-O 7. O-O c5'), '3... Nf6 4. Nc3 Be7 5. d4 exd4 6. Nxd4', 'Lines lose their comments and stop after 6 plies');
+    assert.strictEqual(GameCommentary.shortLine('4. d4 { [%eval 1.39] Better: 4...exd4 } 4... exd4 5. c3'), '4. d4 exd4 5. c3', 'No move number left behind by a removed comment');
     assert.deepStrictEqual([0, 2, 5, 20].map(n => GameCommentary.articleLength(n, 80)), [300, 350, 550, 1000], 'More key moments, a longer article (capped)');
     assert.strictEqual(GameCommentary.articleLength(8, 13), 650, 'A miniature stays short');
 
@@ -824,8 +833,14 @@ console.log("Testing GameCommentary...");
         assert.strictEqual(ch[ch.length - 1].end, longGame.length - 1, 'The chapters cover the whole game');
         assert.deepStrictEqual(GameCommentary.gameChapters(game, { moments: [5, 6] }).map(c => [c.start, c.end]), [[0, 6]], 'A miniature is one chapter');
         assert.deepStrictEqual(GameCommentary.gameChapters([], {}), []);
+        // A cut that leaves a scrap (here two plies before the phase changes) folds it back
+        const scrap = GameCommentary.gameChapters(longGame, { moments: [12, 14, 16, 18], phaseOf: fen => (parseInt(fen.split(' ')[5], 10) <= 10 ? 'opening' : 'middlegame') });
+        assert.ok(scrap.every(c => c.end - c.start + 1 >= 4), 'No chapter shorter than 4 plies');
+        assert.deepStrictEqual(scrap.map(c => [c.start, c.end]), [[0, 19], [20, 84]]);
         const longTask = GameCommentary.buildArticleMessages({ moves: longGame, gameInfo: info })[1].content;
-        assert.ok(longTask.includes('The game in 3 chapters') && longTask.includes('Chapter 2: Middlegame, moves 6-28\n- Moves: 6. Re1 b5') && longTask.includes('Chapter 1: Opening, moves 1-5\n- Moves: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7\n- Key moments: none, a quiet stretch'), 'Each chapter with its own moves');
+        assert.ok(longTask.includes('in 3 chapters') && longTask.includes('## The opening (moves 1-5)\n1. e4 (White): good') && longTask.includes('5... Be7 (Black): good\n\n## The middlegame (moves 6-28)\n6. Re1 (White): good') && longTask.includes('## The endgame (moves 29-43)'), 'Each chapter under its heading, with its own moves');
+        const busy = GameCommentary.buildArticleMessages({ moves: longGame.map((m, i) => ([13, 22, 33, 40, 46, 52].includes(i) ? Object.assign({}, m, { quality: 'mistake', detailed_quality: 'mistake' }) : m)), gameInfo: info })[1].content;
+        assert.ok(busy.includes('## The middlegame, part 1 (moves 6-20)') && busy.includes('## The middlegame, part 2 (moves 21-28)'), 'A phase cut in two gets numbered parts');
     }
 
     // cleanText: what the model says, minus thinking, preambles and a fence around it
@@ -905,12 +920,12 @@ console.log("Testing GameCommentary...");
     assert.strictEqual(GameCommentary.completionText({ choices: [{ message: { content: 'Hi' } }] }), 'Hi');
 
     // One article per game, the most recent games kept; the old per-move caches are dropped
-    const store = { data: { whyblunder_commentary_v2: '{}', whyblunder_commentary_v6: '{}' }, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
-    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v7', 'Commentaries written with an older prompt are not reused');
+    const store = { data: { whyblunder_commentary_v2: '{}', whyblunder_commentary_v7: '{}' }, getItem(k) { return this.data[k] || null; }, setItem(k, v) { this.data[k] = v; }, removeItem(k) { delete this.data[k]; } };
+    assert.strictEqual(GameCommentary.STORAGE_KEY, 'whyblunder_commentary_v8', 'Commentaries written with an older prompt are not reused');
     GameCommentary.saveArticle('gA', '# Title\n\nBody', 'm', store);
     assert.strictEqual(GameCommentary.loadArticle('gA', store).text, '# Title\n\nBody');
     assert.strictEqual(GameCommentary.loadArticle('gA', store).model, 'm');
-    assert.ok(!('whyblunder_commentary_v2' in store.data) && !('whyblunder_commentary_v6' in store.data), 'The old caches are removed');
+    assert.ok(!('whyblunder_commentary_v2' in store.data) && !('whyblunder_commentary_v7' in store.data), 'The old caches are removed');
     GameCommentary.removeArticle('gA', store);
     assert.strictEqual(GameCommentary.loadArticle('gA', store), null);
     for (let i = 0; i < 10; i++) { store.data[GameCommentary.STORAGE_KEY] = JSON.stringify(Object.assign(JSON.parse(store.data[GameCommentary.STORAGE_KEY]), { ['g' + i]: { text: 't', savedAt: 1000 + i } })); }
@@ -965,6 +980,7 @@ console.log("Testing GameCommentary...");
     assert.ok(indexHtml.includes('GameCommentary.linkMoves(text, { moves: c.moves })') && indexHtml.includes('<button type="button" class="gc-move" data-gc-move data-gc-game="${s.gameIndex}"'), 'Moves in the article are buttons');
     assert.ok(indexHtml.includes('const after = line.gameStart === null ? -1 : line.gameStart - 1;') && indexHtml.includes('class="gc-move var-move-btn var-btn-better" data-gc-move data-move-idx="${after}" data-type="${escapeHtml(lineType)}" data-step="${s.step}"'), 'A line\'s moves are .var-move-btn steps of the game move it branches off');
     assert.ok(/\.gc-article \.gc-move\.var-move-btn:not\(\.active\),\s*\.gc-legend \.gc-key\.is-line \{[\s\S]{0,80}border-style: dashed;/.test(indexHtml) && indexHtml.includes('<span class="gc-legend"><span class="gc-key">played</span><span class="gc-key is-line">not played</span></span>') && indexHtml.includes('title="Not played in the game: show this line on the board"'), 'Lines that were not played look different from the moves of the game');
+    assert.ok(/\.gc-article \.gc-move \{ user-select: text; -webkit-user-select: text; \}/.test(indexHtml), 'Copying the article keeps its moves (line buttons turn selection off elsewhere)');
     assert.ok(indexHtml.includes('commentaryTextHtml(c.text, c, !live)'), 'Moves are linked once the article is written, not on every streamed chunk');
     assert.ok(/\.gc-article \.gc-move,\s*\.gc-article \.gc-move\.var-move-btn \{[\s\S]{0,200}background: rgba\(0, 0, 0, 0\.08\);[\s\S]{0,80}font-family: monospace;/.test(indexHtml), 'Same look as the moves in the engine bubble');
     assert.ok(/\.gc-article \.gc-move\.var-move-btn\.active \{/.test(indexHtml), 'The move on the board is highlighted');

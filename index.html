@@ -4803,6 +4803,8 @@
             font-weight: 600;
         }
         .gc-article .gc-move.var-move-btn:not(.active):hover { background: rgba(0, 0, 0, 0.06); color: #1a1a18; }
+        /* Moves are part of the text: copying the article keeps them (.var-move-btn turns selection off) */
+        .gc-article .gc-move { user-select: text; -webkit-user-select: text; }
         .gc-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
         .gc-legend { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
         .gc-legend .gc-key {

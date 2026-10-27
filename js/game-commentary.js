@@ -29,44 +29,31 @@
         'the reader, naming the tactics (fork, pin, skewer, discovered attack, back-rank mate...), hyping the great moves and',
         'roasting the blunders, always with the reason behind it.',
         '',
-        'You write one article about a whole game, like a GothamChess recap video turned into a blog post. You get the game',
-        'split into chapters, in the order it was played, and a chess engine\'s notes on its key moments (verdict, comment,',
-        'better lines, the punishment). Those notes are your private preparation. The reader never sees them, so do not read',
-        'them out or refer to them: turn them into explanations.',
+        'You write one article about one game, like a GothamChess recap video turned into a blog post. You get the game as an',
+        'annotated move list, split into chapters: every move in the order it was played, with the side that played it and',
+        'how good it was, and under the key moments what the move does, the better move and the punishment. Everything you',
+        'write comes from that move list. The reader follows the article on a board, one move after the other.',
         '',
-        'The reader follows the article on a board, one move after the other, so the article goes through the game in the',
-        'order it was played. Spend your words on the moments that decided it and cover the quiet stretches in a sentence or',
-        'two. Teach, do not recap: the reader wants the why, what each side is aiming for, where the alternatives lead and',
-        'the pattern to remember. Every sentence says something about the game: no filler, no warm-up, no questions to the',
-        'reader.',
-        '- Structure: a title on the first line ("# ..."), a short intro (the players, the opening and its main idea), then',
-        '  one section per chapter, in the order given, each with a "## " heading named after what happens in it and ending',
-        '  with its move range (not "Middlegame" but "The knight that never came back (moves 12-20)"), and a last section',
-        '  "## Lessons" with 2 to 4 bullet points the reader can use in their own games.',
-        '- Follow the game: a section only talks about the moves of its chapter, in the order they were played, and picks up',
-        '  where the previous one stopped. Never mention a move before its turn comes: no spoilers in the intro or in early',
-        '  sections, the result comes at the end.',
-        '- Keep what was played apart from what could have been. At a key moment, first say what was played and by whom',
-        '  ("Black went 14... Qd7?"), then explain it and the better move or the punishment ("Instead, 14... Nf6 would have',
-        '  ..."), then come back to the game ("In the game, White replied 15. Qh5"). Alternatives are always "instead",',
-        '  "would have", "could have"; moves of the game are always "played", "went", "in the game".',
-        '- Name the side for every move you bring up ("White\'s 15. Qh5", "Black answered 15... g6"), so the reader always',
-        '  knows who is moving.',
-        '- For an inaccuracy, mistake or blunder, say exactly what goes wrong (the hanging piece, the tactic it allows, the',
-        '  weakness it creates) and play the punishing line out, saying what its key moves achieve ("3... Nf6?? and 4. Qxf7',
-        '  is mate: f7 was only defended by the king").',
-        '- For the better move and the other alternatives in the notes, explain the idea behind them and how play would go',
-        '  on (the plan, the threat, the kind of position it leads to), not only their names.',
-        '- For a great or brilliant move, say why it works and what goes wrong for the opponent after the natural replies.',
-        '- When a player misses the punishment of the opponent\'s mistake, show what they missed and why it works.',
-        '- Write every move with its number, in standard algebraic notation: "14. Nxe5", "14... Qd7", and number the',
-        '  lines too ("15. Qh5 g6 16. Qxe5"). The reader can click moves written like that to see them on the board.',
-        '- Never quote evaluation numbers (+1.35, -0.61, #3) and never say "the engine says", "the engine notes",',
-        '  "according to the notes", "Stockfish evaluates", "the computer gives" or "the evaluation is". Give the reason, not',
-        '  the verdict; when the overall picture matters, say it in a few plain words ("White is just winning", "Black is up',
-        '  a piece").',
-        '- Stay faithful to the notes and the moves: do not invent tactics, threats or lines they do not support, and only',
-        '  mention moves that are legal in the position.',
+        'How to write it:',
+        '- Start with a title ("# ..."), then a short intro: the players and the opening. Do not give away anything that',
+        '  happens later in the game.',
+        '- Then one section per chapter, in order, each starting with the heading given for it, word for word. A section only',
+        '  talks about the moves of its chapter, in the order they were played.',
+        '- Cover the quiet moves of a chapter in a sentence or two (the plans, what each side is building). Spend your words',
+        '  on the key moments, and teach: why the move works or fails, what each side is aiming for, the pattern to remember.',
+        '- At a key moment, first say what was played and by whom ("Black played 14... Qd7"), then why it is good or bad (the',
+        '  hanging piece, the tactic, the weakness), then the better move or the punishment as something that did not happen',
+        '  ("Instead, 14... Nf6 would have..."), then go back to the game ("In the game, White replied 15. Qh5").',
+        '- Get the sides right: "14. Nf3" (one dot) is White\'s move, "14... Nf6" (three dots) is Black\'s. Name the side',
+        '  every time you bring up a move.',
+        '- Write every move with its number ("14. Nxe5", "14... Qd7", lines too: "15. Qh5 g6 16. Qxe5"); the reader can click',
+        '  them. Only use moves from the move list: the moves played, and the better moves and punishments given there.',
+        '- After the last chapter, say how the game ended, then a "## Lessons" section with 2 to 4 bullet points the reader',
+        '  can use in their own games, each tied to a moment of this game.',
+        '- Never write numbers that measure the position (+1.35, -0.61, #3, "an advantage of 2.1"), and never mention an',
+        '  engine, a computer, an evaluation, notes, the move list or a FEN. Say it in plain words: "White is just winning",',
+        '  "Black is up a piece".',
+        '- Do not invent tactics, threats, squares or pieces that the move list does not support.',
         '- Answer with the article itself, in markdown: no preamble, no notes about these instructions, and no thinking out',
         '  loud.'
     ].join('\n');
@@ -74,8 +61,8 @@
     const CRITICAL = ['inaccuracy', 'mistake', 'miss', 'blunder', 'brilliant', 'great'];
     const FLAWED = ['inaccuracy', 'mistake', 'miss', 'blunder'];
 
-    const STORAGE_KEY = 'whyblunder_commentary_v7'; // v7: article in chapters, in game order (v6: free-form article, v3-v5: per move, v1/v2: one-shot sections)
-    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3', 'whyblunder_commentary_v4', 'whyblunder_commentary_v5', 'whyblunder_commentary_v6'];
+    const STORAGE_KEY = 'whyblunder_commentary_v8'; // v8: from an annotated move list (v7: chapters, v6: free-form article, v3-v5: per move, v1/v2: one-shot sections)
+    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3', 'whyblunder_commentary_v4', 'whyblunder_commentary_v5', 'whyblunder_commentary_v6', 'whyblunder_commentary_v7'];
     const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
     const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
@@ -165,15 +152,9 @@
         return Math.max(300, Math.min(1000, Math.round(words / 50) * 50));
     }
 
-    /** '7. Nf3 Nc6 8. O-O' for moves[start..end] (a range that starts with Black's move: '7... Nc6 8. O-O'). */
-    function movesBetween(moves, start, end) {
-        const out = [];
-        for (let i = start; i <= end && i < moves.length; i++) {
-            const m = moves[i];
-            if (m.is_white) out.push(`${m.move_number}. ${displaySan(m.move)}`);
-            else out.push(i === start ? `${m.move_number}... ${displaySan(m.move)}` : displaySan(m.move));
-        }
-        return out.join(' ');
+    /** 'an inaccuracy', 'a mistake' */
+    function withArticle(word) {
+        return `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
     }
 
     function getPhaseOf(override) {
@@ -197,7 +178,8 @@
      * The game in chapters, in the order it was played: the phases (opening,
      * middlegame, endgame from the position before each move, never going back),
      * a phase shorter than MIN_CHAPTER plies joined to its neighbour, and a phase
-     * with more than MAX_CLUSTERS key moments cut after every third one, so each
+     * with more than MAX_CLUSTERS key moments cut after every third one (a piece
+     * left shorter than MIN_CHAPTER joins the chapter before it), so each
      * section of the article tells a short stretch of the game.
      *
      * @returns {Array<{ phase, label, start, end, moments: number[] }>} ply indices, inclusive
@@ -259,6 +241,13 @@
             }
             chapters.push({ phase: r.phase, start, end: r.end });
         });
+        // A stretch left too short by a cut joins the chapter before it
+        for (let n = chapters.length - 1; n > 0; n--) {
+            if (chapters[n].end - chapters[n].start + 1 < MIN_CHAPTER) {
+                chapters[n - 1].end = chapters[n].end;
+                chapters.splice(n, 1);
+            }
+        }
         return chapters.map(c => {
             const moments = [];
             for (let i = c.start; i <= c.end; i++) if (momentSet.has(i)) moments.push(i);
@@ -273,13 +262,97 @@
         return a === b ? `move ${a}` : `moves ${a}-${b}`;
     }
 
-    /** 'an inaccuracy', 'a mistake' */
-    function withArticle(word) {
-        return `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
+    // How each move is rated in the move list sent to the model
+    const VERDICTS = {
+        brilliant: 'BRILLIANT (!!)', great: 'GREAT MOVE (!)', best: 'best move', excellent: 'excellent', good: 'good',
+        'good move': 'good', book: 'book move', inaccuracy: 'INACCURACY (?!)', mistake: 'MISTAKE (?)', miss: 'MISSED WIN (?)',
+        blunder: 'BLUNDER (??)'
+    };
+    const NOTE_MAX_PLIES = 6;
+
+    /**
+     * An analysis comment in plain words, with nothing the model could read out
+     * as a number: no [%eval] tags or {comments}, no evaluations in brackets,
+     * no sentence that still measures the position or names the engine, and no
+     * leading verdict (the move list gives it).
+     */
+    function plainNote(text) {
+        const t = String(text || '')
+            .replace(/\{[^}]*\}/g, ' ')
+            .replace(/\[%[^\]]*\]/g, ' ')
+            .replace(/\s*\(\s*(?:[+-]?\d+\.\d+|[+-]?#-?\d+|[+-]?M-?\d+)\s*\)/g, '')
+            .replace(/(^|\s)[+-]?\d+\.\d+\b/g, '$1\u0000')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .replace(/^(?:Brilliant|Great move|Best move|Excellent|Good move|Book move|Inaccuracy|Mistake|Missed win|Blunder)[.!]?\s*/i, '');
+        return t.split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+            .filter(s => s && !/\u0000|\bevaluation\b|\bengine\b|stockfish/i.test(s))
+            .join(' ');
+    }
+
+    /** A line ('3... g6 { Better } 4. Qf3 Nf6 5. d3 ...') cut to its first plies, without comments. */
+    function shortLine(line, maxPlies) {
+        const tokens = String(line || '').replace(/\{[^}]*\}/g, ' ').replace(/\[%[^\]]*\]/g, ' ').trim().split(/\s+/).filter(Boolean);
+        const out = [];
+        let plies = 0;
+        let white = null; // number of the White move just written
+        for (const tok of tokens) {
+            const num = tok.match(/^(\d+)\.(\.\.)?$/);
+            // "4. d4 4... exd4" (the number a removed comment left behind) -> "4. d4 exd4"
+            if (num && num[2] && white === num[1] && out.length && !/^\d+\./.test(out[out.length - 1])) continue;
+            if (num) { white = num[2] ? null : num[1]; out.push(tok); continue; }
+            if (++plies > (maxPlies || NOTE_MAX_PLIES)) break;
+            out.push(tok);
+        }
+        while (out.length && /^\d+\.(?:\.\.)?$/.test(out[out.length - 1])) out.pop();
+        return out.join(' ');
+    }
+
+    const PIECE_NAMES = { q: ['queen', 'queens'], r: ['rook', 'rooks'], b: ['bishop', 'bishops'], n: ['knight', 'knights'], p: ['pawn', 'pawns'] };
+
+    /** 'queen, 2 rooks, bishop and 5 pawns' for one side of a FEN ('w' | 'b'). */
+    function materialOf(fen, color) {
+        const board = String(fen || '').split(' ')[0];
+        const parts = ['q', 'r', 'b', 'n', 'p'].map(t => {
+            const n = (board.match(new RegExp(color === 'w' ? t.toUpperCase() : t, 'g')) || []).length;
+            return n ? (n === 1 ? PIECE_NAMES[t][0] : `${n} ${PIECE_NAMES[t][1]}`) : '';
+        }).filter(Boolean);
+        if (!parts.length) return 'only the king';
+        return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+    }
+
+    /** How the game finished, from the last move, the final position and the result. */
+    function gameEnding(moves, result, fenAfter, ChessCtor) {
+        const last = moves.length - 1;
+        if (last < 0) return '';
+        const label = moveLabel(moves, last);
+        const mover = moves[last].is_white ? 'White' : 'Black';
+        let board = null;
+        try { board = fenAfter && ChessCtor ? new ChessCtor(fenAfter) : null; } catch (e) { board = null; }
+        let how;
+        if (/#$/.test(String(moves[last].move)) || (board && board.in_checkmate && board.in_checkmate())) how = `${mover} delivered checkmate with ${label}.`;
+        else if (board && board.in_stalemate && board.in_stalemate()) how = `Stalemate after ${label}: a draw.`;
+        else if (result === '1-0') how = `Black resigned (or ran out of time) after ${label}.`;
+        else if (result === '0-1') how = `White resigned (or ran out of time) after ${label}.`;
+        else if (result === '1/2-1/2') how = `The game was drawn after ${label}.`;
+        else how = `The game stopped after ${label}.`;
+        const material = fenAfter ? ` Material at the end: White has ${materialOf(fenAfter, 'w')}; Black has ${materialOf(fenAfter, 'b')}.` : '';
+        return how + material;
+    }
+
+    /** '## The opening (moves 1-5)', '## The middlegame, part 2 (moves 21-28)' */
+    function chapterHeading(moves, chapters, n) {
+        const c = chapters[n];
+        const same = chapters.filter(x => x.phase === c.phase);
+        const part = same.length > 1 ? `, part ${same.indexOf(c) + 1}` : '';
+        return `## The ${c.label.toLowerCase()}${part} (${chapterRange(moves, c)})`;
     }
 
     /**
-     * Chat messages asking for the article about the whole game.
+     * Chat messages asking for the article about the whole game. The game goes
+     * in as an annotated move list, chapter by chapter: every move with its
+     * side and verdict, and under each key moment what it does, the better
+     * line and the punishment, in plain words (no numbers, no FEN).
      *
      * @param {object} o
      *   moves     analyzed moves (output contract in AGENTS.md)
@@ -290,6 +363,7 @@
         const moves = o.moves || [];
         const info = o.gameInfo || {};
         const P = getPgnExport(o.PgnExport);
+        const ChessCtor = getChessConstructor(o.Chess);
         const last = moves.length - 1;
         const result = /^(1-0|0-1|1\/2-1\/2)$/.test(String(info.result || '').trim()) ? String(info.result).trim() : '';
 
@@ -300,48 +374,49 @@
         header.push(`Result: ${result || 'unknown'}`);
         task.push(`Game: ${header.join('. ')}.`);
         task.push('');
+
         const moments = keyMoments(moves, P);
         const chapters = gameChapters(moves, { moments, phaseOf: o.phaseOf, Chess: o.Chess });
         const byIndex = {};
         moments.forEach(k => { byIndex[k.index] = k; });
-        task.push(`The game in ${chapters.length} chapter${chapters.length === 1 ? '' : 's'}, in the order it was played. Write one "## " section per chapter, in this order:`);
+        task.push(`The game as an annotated move list, in ${chapters.length} chapter${chapters.length === 1 ? '' : 's'}. Write one section per chapter, in this order, under these headings:`);
         chapters.forEach((c, n) => {
             task.push('');
-            task.push(`Chapter ${n + 1}: ${c.label}, ${chapterRange(moves, c)}`);
-            task.push(`- Moves: ${movesBetween(moves, c.start, c.end)}${c.end === last && result ? ` ${result}` : ''}`);
-            task.push(`- Key moments: ${c.moments.length ? c.moments.map(i => moveLabel(moves, i)).join(', ') : 'none, a quiet stretch (a sentence or two on the plans)'}`);
+            task.push(chapterHeading(moves, chapters, n));
+            for (let i = c.start; i <= c.end; i++) {
+                const move = moves[i];
+                const k = byIndex[i];
+                const key = qualityKey(move);
+                const side = move.is_white ? 'White' : 'Black';
+                const verdict = VERDICTS[key] || 'good';
+                task.push(`${moveLabel(moves, i)} (${side}): ${verdict}${k ? ' - KEY MOMENT' : ''}`);
+                if (!k) continue;
+                const notes = k.notes || {};
+                const what = plainNote(notes.comment);
+                if (what) task.push(`    What it does: ${what}`);
+                (notes.lines || []).slice(0, 2).forEach(l => {
+                    const line = shortLine(l);
+                    if (line) task.push(`    ${FLAWED.includes(key) ? 'Better' : 'Also possible'}: ${line} (not played)`);
+                });
+                if (notes.punishment && FLAWED.includes(key)) {
+                    const next = moves[i + 1];
+                    const played = next && firstSan(notes.punishment) === bareSan(next.move);
+                    task.push(`    The punishment: ${shortLine(notes.punishment)}${played ? ' (played in the game)' : ' (not played)'}`);
+                }
+                if (k.punishes) task.push(`    It punishes ${moveLabel(moves, i - 1)}, ${withArticle(qualityKey(moves[i - 1]))} by ${moves[i - 1].is_white ? 'White' : 'Black'}.`);
+                if (k.missedPunishment) task.push(`    It misses the punishment of ${moveLabel(moves, i - 1)}: ${shortLine(k.prevPunishment)} (not played).`);
+            }
         });
         const final = last >= 0 && P && P.moveNotes ? P.moveNotes(moves, last) : null;
-        if (final && final.fenAfter) task.push(`\nFinal position (FEN): ${final.fenAfter}`);
-        task.push('');
-
-        if (moments.length) {
-            task.push('Engine notes on the key moments, chapter by chapter (private, do not read them out):');
-            chapters.forEach((c, n) => {
-                if (!c.moments.length) return;
-                task.push('');
-                task.push(`[Chapter ${n + 1}, ${chapterRange(moves, c)}]`);
-                c.moments.forEach(i => {
-                    const k = byIndex[i];
-                    const move = moves[i];
-                    const label = moveLabel(moves, i);
-                    const notes = k.notes;
-                    task.push(`${label} (${move.is_white ? 'White' : 'Black'}): ${(notes && notes.quality) || k.key || 'good move'}`);
-                    if (notes && notes.fenBefore) task.push(`- Position before the move (FEN): ${notes.fenBefore}`);
-                    if (notes && notes.comment) task.push(`- Comment: ${notes.comment}`);
-                    if (notes && notes.lines && notes.lines.length) task.push(`- Lines from the position before the move (alternatives, not played): ${notes.lines.join(' | ')}`);
-                    if (notes && notes.punishment) task.push(`- How the opponent can punish it (not necessarily played): ${notes.punishment}`);
-                    if (k.punishes) task.push(`- It punishes the previous move, ${moveLabel(moves, i - 1)} (${withArticle(qualityKey(moves[i - 1]))}).`);
-                    if (k.missedPunishment) task.push(`- The previous move, ${moveLabel(moves, i - 1)}, was ${withArticle(qualityKey(moves[i - 1]))}: it could have been punished with ${k.prevPunishment}, and ${label} misses that.`);
-                });
-            });
+        const ending = gameEnding(moves, result, final && final.fenAfter, ChessCtor);
+        if (ending) {
             task.push('');
-            task.push('Go through the chapters in order and cover every key moment where it happens: the ones that decided the game at');
-            task.push('length (what was played, the line that shows what it does, the better move and how play would go on, then back to');
-            task.push('the game), the small slips in a sentence.');
-        } else {
-            task.push('The engine found no mistakes and no standout moves: tell the story of the plans, chapter by chapter, and how the game was decided.');
+            task.push(`How it ended: ${ending}`);
         }
+        task.push('');
+        task.push(moments.length
+            ? 'Cover every key moment where it happens: the ones that decided the game at length, the small slips in a sentence.'
+            : 'There are no mistakes and no standout moves: tell the story of the plans, chapter by chapter, and how the game was decided.');
         task.push(`Write about ${articleLength(moments.length, moves.length)} words. Answer with the article only.`);
 
         return [
@@ -914,6 +989,9 @@
         buildArticleMessages,
         keyMoments,
         gameChapters,
+        plainNote,
+        shortLine,
+        gameEnding,
         articleLength,
         cleanText,
         isClassifierVerdict,
