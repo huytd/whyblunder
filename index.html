@@ -4793,7 +4793,27 @@
             border-color: rgba(98, 153, 36, 0.65);
             box-shadow: 0 0 6px rgba(98, 153, 36, 0.25);
         }
+        /* Lines that were not played: dashed and lighter, so the moves of the game stand out */
+        .gc-article .gc-move.var-move-btn:not(.active),
+        .gc-legend .gc-key.is-line {
+            background: transparent;
+            border-style: dashed;
+            border-color: rgba(0, 0, 0, 0.32);
+            color: #5d5b58;
+            font-weight: 600;
+        }
+        .gc-article .gc-move.var-move-btn:not(.active):hover { background: rgba(0, 0, 0, 0.06); color: #1a1a18; }
         .gc-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .gc-legend { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
+        .gc-legend .gc-key {
+            padding: 0 5px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 3px;
+            background: rgba(0, 0, 0, 0.08);
+            color: #1a1a18;
+            font-family: monospace;
+            font-weight: 700;
+        }
         .gc-link { border: 0; background: none; padding: 0; color: #5c86ad; text-decoration: underline; font-size: 0.8125rem; }
         .gc-live { display: inline-flex; align-items: center; gap: 4px; }
         .gc-live::before {
@@ -13804,7 +13824,7 @@
                         const line = linked.lines[s.line];
                         const lineType = commentaryLineType(s.line, line);
                         const after = line.gameStart === null ? -1 : line.gameStart - 1; // the game move the line branches off after
-                        buttons.push(`<button type="button" class="gc-move var-move-btn var-btn-better" data-gc-move data-move-idx="${after}" data-type="${escapeHtml(lineType)}" data-step="${s.step}" title="Show this line on the board">${label}</button>`);
+                        buttons.push(`<button type="button" class="gc-move var-move-btn var-btn-better" data-gc-move data-move-idx="${after}" data-type="${escapeHtml(lineType)}" data-step="${s.step}" title="Not played in the game: show this line on the board">${label}</button>`);
                     }
                     return `${GameCommentary.PLACEHOLDER_OPEN}${buttons.length - 1}${GameCommentary.PLACEHOLDER_CLOSE}`;
                 }).join('');
@@ -13897,9 +13917,12 @@
                 else if (c.status !== 'error' && c.status !== 'stopped') body = commentaryWaitingHtml(c);
                 if (c.status === 'stopped') body += `<div class="gc-muted">${c.text ? 'Stopped before the end.' : 'Stopped.'}</div>`;
                 if (c.status === 'error') body += `<div class="gc-error">${escapeHtml(c.error)}</div>`;
+                // Once the moves are buttons: solid = played in the game, dashed = a line that was not
+                const legend = (!live && c.text && c.status !== 'error')
+                    ? '<span class="gc-legend"><span class="gc-key">played</span><span class="gc-key is-line">not played</span></span>' : '';
                 const actions = live
                     ? `<span class="gc-live">Writing</span><button type="button" class="gc-link" data-gc-action="stop">Stop</button>`
-                    : c.status ? `<button type="button" class="gc-link" data-gc-action="restart">${c.status === 'error' ? 'Try again' : 'Regenerate'}</button>` : '';
+                    : c.status ? `${legend}<button type="button" class="gc-link" data-gc-action="restart">${c.status === 'error' ? 'Try again' : 'Regenerate'}</button>` : '';
                 return `${body}${actions ? `<div class="gc-actions">${actions}</div>` : ''}`;
             }
 
