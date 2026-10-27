@@ -4672,7 +4672,7 @@
         }
         .cc-export-opt input { accent-color: var(--cc-cta, var(--lic-blue)); }
 
-        /* --- Engine / AI commentary toggle and LLM settings in the coach bubble (GameCommentary) --- */
+        /* --- Engine / AI toggle, the AI game article and its LLM settings (GameCommentary) --- */
         .gc-toggle {
             margin-left: auto;
             display: inline-flex;
@@ -4706,15 +4706,69 @@
         .gc-body pre code { padding: 0; background: none; }
         .gc-body hr { margin: 8px 0; border: 0; border-top: 1px solid #e6e4e1; opacity: 1; }
         .gc-body del { opacity: 0.7; }
-        .gc-from, .gc-muted, .gc-actions { font-size: 0.8125rem; color: #77746f; }
-        .gc-from { margin-bottom: 2px; }
+        .gc-muted, .gc-actions { font-size: 0.8125rem; color: #77746f; }
         .gc-muted { font-style: italic; }
         .gc-muted b { font-style: normal; color: #312e2b; }
         .gc-timer { font-style: normal; font-variant-numeric: tabular-nums; }
-        .gc-progress { font-variant-numeric: tabular-nums; }
-        /* Moves in the commentary: the engine bubble's .diag-highlight-move look, clickable */
-        .cc-coach-bubble .gc-move,
-        .cc-coach-bubble .gc-move.var-move-btn {
+        /* Article | Analysis tabs in the right column header (desktop) */
+        .gc-tabs[hidden] { display: none !important; }
+        .gc-tabs { display: none; gap: 4px; }
+        .gc-tabs button {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 0;
+            border-radius: 6px;
+            padding: 4px 12px;
+            background: transparent;
+            color: var(--lic-text-secondary);
+            font-size: 0.875rem;
+            font-weight: 800;
+        }
+        .gc-tabs button:hover { background: var(--lic-bg-surface-hover); color: var(--lic-text-bright); }
+        .gc-tabs button[aria-selected="true"] { background: #3c3a37; color: var(--lic-text-bright); }
+        .gc-tabs button[aria-selected="true"] .bi { color: var(--cc-cta, var(--lic-blue)); }
+        /* The article: a white page in the Move Analysis panel, in place of the move explanation */
+        .gc-article {
+            background: #fff;
+            color: #312e2b;
+            border-radius: 10px;
+            padding: 12px 16px 14px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        .gc-article-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e6e4e1;
+        }
+        .gc-article-kicker {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #77746f;
+        }
+        .gc-article-kicker .bi { color: var(--cc-cta, #5d8f2c); }
+        .gc-article-body { margin-top: 0; font-size: 0.9375rem; line-height: 1.6; }
+        .gc-article-body p { margin: 0 0 10px; }
+        .gc-article-body ul, .gc-article-body ol { margin-bottom: 10px; }
+        .gc-article-body li { margin: 4px 0; }
+        .gc-article-body .gc-md-heading { margin: 16px 0 6px; font-size: 1rem; line-height: 1.3; }
+        .gc-article-body .gc-md-h1 { margin: 0 0 10px; font-size: 1.25rem; font-weight: 800; }
+        .gc-article-body > .gc-md-heading:first-child { margin-top: 0; }
+        /* The passage about the move on the board */
+        .gc-article-body .gc-current {
+            margin-left: -10px;
+            padding-left: 7px;
+            border-left: 3px solid rgba(98, 153, 36, 0.65);
+        }
+        .gc-article-body li.gc-current { margin-left: 0; padding-left: 4px; }
+        /* Moves in the article: the engine bubble's .diag-highlight-move look, clickable */
+        .gc-article .gc-move,
+        .gc-article .gc-move.var-move-btn {
             display: inline;
             padding: 1px 5px;
             border: 1px solid rgba(0, 0, 0, 0.12);
@@ -4729,17 +4783,16 @@
             cursor: pointer;
             box-shadow: none;
         }
-        .cc-coach-bubble .gc-move:hover,
-        .cc-coach-bubble .gc-move.var-move-btn:hover { background: rgba(0, 0, 0, 0.14); color: #1a1a18; border-color: rgba(0, 0, 0, 0.22); }
+        .gc-article .gc-move:hover,
+        .gc-article .gc-move.var-move-btn:hover { background: rgba(0, 0, 0, 0.14); color: #1a1a18; border-color: rgba(0, 0, 0, 0.22); }
         /* The move on the board (a game move, or the step of the line being shown) */
-        .cc-coach-bubble .gc-move.active,
-        .cc-coach-bubble .gc-move.var-move-btn.active {
+        .gc-article .gc-move.active,
+        .gc-article .gc-move.var-move-btn.active {
             background: rgba(98, 153, 36, 0.22);
             color: #2f5410;
             border-color: rgba(98, 153, 36, 0.65);
             box-shadow: 0 0 6px rgba(98, 153, 36, 0.25);
         }
-        .gc-outro { margin-top: 6px; padding-top: 6px; border-top: 1px solid #e6e4e1; }
         .gc-actions { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
         .gc-link { border: 0; background: none; padding: 0; color: #5c86ad; text-decoration: underline; font-size: 0.8125rem; }
         .gc-live { display: inline-flex; align-items: center; gap: 4px; }
@@ -5015,6 +5068,19 @@
             body[data-theme="cc"].cc-summary-open .col-moves {
                 display: none !important;
             }
+            /* Article tab: the article gets the whole right column; the Analysis tab holds the
+               move explanation and the move list. The header tabs replace the in-panel toggle. */
+            body[data-theme="cc"].gc-article-mode:not(.coach-mode):not(.self-review-active) .col-moves {
+                display: none !important;
+            }
+            body[data-theme="cc"].gc-article-mode:not(.coach-mode):not(.self-review-active) .col-analysis {
+                grid-row: 1 / span 2;
+                max-height: none;
+            }
+            body[data-theme="cc"].gc-article-mode:not(.coach-mode):not(.self-review-active) .col-analysis .lic-panel { height: 100%; }
+            body[data-theme="cc"] #moveExplanation .gc-toggle,
+            body[data-theme="cc"] #moveExplanation .gc-article-head { display: none; }
+            body[data-theme="cc"] .lic-panel-header .gc-tabs:not([hidden]) { display: inline-flex; }
             body[data-theme="cc"] .lic-panel-header {
                 text-transform: none;
                 letter-spacing: 0;
@@ -6079,9 +6145,14 @@
             <div class="col-analysis">
                 <div class="lic-panel">
                     <div class="lic-panel-header">
-                        <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-2" id="moveAnalysisTitle">
                             <i class="bi bi-cpu text-info"></i>
                             <span>Move Analysis</span>
+                        </div>
+                        <!-- Desktop, once a game is analyzed: the AI article | the engine analysis with the move list -->
+                        <div class="gc-tabs" id="gcTabs" role="tablist" aria-label="Right panel" hidden>
+                            <button type="button" role="tab" data-gc-source="ai" aria-selected="false"><i class="bi bi-journal-text"></i> Article</button>
+                            <button type="button" role="tab" data-gc-source="engine" aria-selected="true"><i class="bi bi-cpu"></i> Analysis</button>
                         </div>
                         <span id="analysisStatusBadge" class="badge bg-dark border border-secondary text-secondary" style="font-size:var(--lic-fs-sm);">READY</span>
                     </div>
@@ -6680,7 +6751,7 @@
             let currentGameInfo = null;
             let currentAnalysisDepth = null;
             let exploredLines = []; // "Your Line" variations tried this session, kept for the PGN export
-            let commentary = null; // { key, model, pgn, entries: { [moveIndex]: { text, status, ... } } }, see commentaryState()
+            let commentary = null; // the AI article of the game on screen: { key, model, text, status, ... }, see commentaryState()
             let commentaryRenderPending = false;
             let explainSource = 'engine'; // coach bubble: 'engine' analysis or 'ai' commentary
 
@@ -8008,10 +8079,7 @@
                             : `Analyzed ${prog.ply} of ${prog.totalPlies} plies (${prog.move || ''})${workersMsg}...`;
                     };
 
-                    const result = await browserDoctor.analyzeGame(pgn, onProgress, analysisDepth, null, {
-                        onStart: startLiveCommentary,
-                        onMove: liveCommentaryMove
-                    });
+                    const result = await browserDoctor.analyzeGame(pgn, onProgress, analysisDepth);
                     if (result.errors && result.errors.length > 0 && (!result.moves || result.moves.length === 0)) {
                         throw new Error(result.errors.join(', '));
                     }
@@ -8046,7 +8114,6 @@
                         analysisStatusBadge.textContent = 'COMPLETE';
                     }
                 } catch (error) {
-                    stopLiveCommentary();
                     console.error("Game analysis error:", error);
                     if (analysisStatusBadge) {
                         analysisStatusBadge.className = 'badge bg-danger text-light';
@@ -8722,8 +8789,10 @@
 
             // Show Comprehensive Move Explanation in Left Column
             function showMoveExplanation(index) {
+                syncCommentaryTabs();
+                if (showCommentaryArticle()) return;
                 if (index < 0 || index >= moves.length) {
-                    moveExplanation.innerHTML = srBackBarHtml() + commentaryIntroHtml() + `
+                    moveExplanation.innerHTML = srBackBarHtml() + `
                         <div class="diagnosis-empty">
                             <i class="bi bi-search"></i>
                             <span>Select any move in the list to view engine diagnosis, tactical tags, threats, and alternative variations.</span>
@@ -8786,15 +8855,9 @@
                     footHtml = `<i class="bi bi-arrow-right me-1 opacity-75"></i><span class="threat-lead">Also: </span>${threats}`;
                 }
 
-                // AI commentary mode: the same bubble, with the commentary for this move as its body
-                const sourceToggle = explainSourceToggleHtml();
-                if (sourceToggle && explainSource === 'ai') {
-                    bodyHtml = `<div class="gc-body" data-gc-body>${commentaryBodyHtml(index)}</div>`;
-                    footHtml = '';
-                }
-
-                // Unknown quality keys render no bubble; keep the narrative visible anyway
-                html += ccCoachLineHtml(move, false, { bodyHtml, footHtml, headExtraHtml: sourceToggle, hideBest: explainSource === 'ai' && Boolean(sourceToggle) })
+                // Unknown quality keys render no bubble; keep the narrative visible anyway.
+                // The Engine / AI toggle in its head switches to the AI article about the game.
+                html += ccCoachLineHtml(move, false, { bodyHtml, footHtml, headExtraHtml: explainSourceToggleHtml() })
                     || `<div class="diag-fallback">${bodyHtml}${footHtml ? `<div class="cc-coach-foot">${footHtml}</div>` : ''}</div>`;
 
                 // 2. WHY CARD: bottom line up front, then situation / threat / idea / alternatives
@@ -9646,7 +9709,9 @@
                 clearKingCheckmateBadges();
                 updateKeyMomentBadge();
 
-                moveExplanation.innerHTML = srBackBarHtml() + commentaryIntroHtml() + `
+                syncCommentaryTabs();
+                if (showCommentaryArticle()) return;
+                moveExplanation.innerHTML = srBackBarHtml() + `
                     <div class="diagnosis-empty">
                         <i class="bi bi-search"></i>
                         <span>Select any move in the list to view engine diagnosis, tactical tags, threats, and alternative variations. Drag a piece on the board to try your own line.</span>
@@ -13360,7 +13425,7 @@
                 const isBad = ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(key);
                 let detail = ccFirstSentence(isBad ? (a.flaw || a.missed_chance || a.explanation) : (a.explanation || a.flaw));
                 const hasCustomBody = Boolean(opts && opts.bodyHtml !== undefined);
-                const best = (hasCustomBody || compact || !isBad || !a.best_move || opts.hideBest) ? '' : `<span class="cc-coach-best">Best was <b>${formatSanWithFigurines(a.best_move, move.is_white)}</b></span>`;
+                const best = (hasCustomBody || compact || !isBad || !a.best_move) ? '' : `<span class="cc-coach-best">Best was <b>${formatSanWithFigurines(a.best_move, move.is_white)}</b></span>`;
                 if (compact) {
                     return `<div class="cc-coach-line is-compact">
                         <span class="cc-coach-avatar" aria-hidden="true">${CC_COACH_AVATAR_SVG}</span>
@@ -13611,17 +13676,14 @@
                 }
             }
 
-            // ---- GothamChess-style commentary (js/game-commentary.js) ----
-            // Written one move at a time with small requests (the game header and that move's
-            // facts), so it can start while the engine is still analyzing: analyzeGame's hooks
-            // (startLiveCommentary / liveCommentaryMove) hand over each move as soon as it is
-            // analyzed, and the moves are written in game order, two at a time (each request stands
-            // on its own: no text of other moves in it). Once the game is on screen
-            // (pumpCommentaryQueue) the move on screen goes first, then the rest in reading order. Shown in the coach bubble when
-            // its Engine / AI toggle is on AI; moves in the text open on the board.
+            // ---- GothamChess-style game article (js/game-commentary.js) ----
+            // Once the engine has analyzed the game, an LLM writes one article about it: a title, the
+            // story of the game in sections, and the lessons. In AI mode (the Engine / AI toggle) the
+            // article takes the place of the move explanation. It is built once per game and stays put
+            // while the player steps through the game: syncCommentaryArticle() only moves the
+            // highlight to the move on the board and scrolls the article to where it is discussed.
+            // Moves in the text are buttons: a game move goes to it, any other line opens on the board.
             const EXPLAIN_SOURCE_KEY = 'whyblunder_explain_source'; // 'engine' | 'ai'
-            const COMMENTARY_MAX_ACTIVE = 2;  // requests in flight at once (move on screen and writers ahead share them)
-            const COMMENTARY_DWELL_MS = 250;  // skimming through moves does not fire a request per move
             try { if (localStorage.getItem(EXPLAIN_SOURCE_KEY) === 'ai') explainSource = 'ai'; } catch (e) {}
 
             function commentaryGameKey() {
@@ -13632,78 +13694,79 @@
                 return typeof GameCommentary !== 'undefined' && GameCommentary.isConfigured(GameCommentary.loadSettings());
             }
 
-            // The bubble can show the commentary (a game on screen in analysis mode).
+            // The article can be shown (a game on screen in analysis mode).
             function commentaryAvailable() {
                 return typeof GameCommentary !== 'undefined' && moves.length > 0 && currentAppMode === 'analysis' && !isSelfReviewActive();
             }
 
-            // The commentary can be written (also behind the self review gate, or during the analysis).
+            // The article can be written (also behind the self review gate).
             function commentaryCanWrite(c) {
                 return Boolean(c) && explainSource === 'ai' && currentAppMode !== 'coach' && commentaryConfigured();
-            }
-
-            function commentaryOnScreen(c) {
-                return Boolean(c) && commentaryAvailable() && c.key === commentaryGameKey();
             }
 
             function explainSourceToggleHtml() {
                 if (!commentaryAvailable()) return '';
                 const btn = (src, label, title) => `<button type="button" data-gc-source="${src}" class="${explainSource === src ? 'is-active' : ''}" aria-pressed="${explainSource === src}" title="${title}">${label}</button>`;
-                return `<span class="gc-toggle" role="group" aria-label="Explanation">${btn('engine', 'Engine', 'Engine analysis')}${btn('ai', 'AI', 'GothamChess-style AI commentary')}</span>`;
+                return `<span class="gc-toggle" role="group" aria-label="Explanation">${btn('engine', 'Engine', 'Engine analysis of the move')}${btn('ai', 'AI', 'GothamChess-style article about the game')}</span>`;
+            }
+
+            // Desktop header tabs (Article | Analysis) and the body class that gives the article
+            // the whole right column; mobile keeps the toggle inside the bottom sheet.
+            function syncCommentaryTabs() {
+                const tabs = document.getElementById('gcTabs');
+                const available = commentaryAvailable();
+                const article = available && explainSource === 'ai';
+                document.body.classList.toggle('gc-article-mode', article);
+                if (!tabs) return;
+                tabs.hidden = !available;
+                const title = document.getElementById('moveAnalysisTitle');
+                if (title) title.classList.toggle('d-none', available);
+                tabs.querySelectorAll('[data-gc-source]').forEach(btn => {
+                    const on = btn.dataset.gcSource === explainSource;
+                    btn.setAttribute('aria-selected', String(on));
+                    btn.tabIndex = on ? 0 : -1;
+                });
             }
 
             function setExplainSource(src) {
                 explainSource = src === 'ai' ? 'ai' : 'engine';
-                resumeCommentaryQueue();
                 try { localStorage.setItem(EXPLAIN_SOURCE_KEY, explainSource); } catch (e) {}
                 syncLlmSettingsForms();
                 showMoveExplanation(currentMoveIndex);
-                pumpCommentaryQueue();
+                maybeAutoStartCommentary();
             }
 
-            // The commentary of one game: its moves (later ones may not be analyzed yet: ready[i]),
-            // and one entry per move (-1 = intro):
-            // { text, status: 'loading'|'streaming'|'done'|'stopped'|'error', error, thinking, startedAt, controller, background }
-            function newCommentaryState(key, gameMoves, gameInfo, ready) {
-                const c = { key, model: '', gameInfo: gameInfo || {}, moves: gameMoves, ready, entries: {}, paused: false, live: false };
-                const saved = key ? GameCommentary.loadGame(key) : null;
-                if (saved) {
-                    c.model = saved.model || '';
-                    Object.keys(saved.moves).forEach(i => {
-                        if (GameCommentary.isClassifierVerdict(saved.moves[i])) GameCommentary.removeMove(key, i);
-                        else c.entries[i] = { text: saved.moves[i], status: 'done' };
-                    });
-                }
+            // The article of one game:
+            // { key, model, moves, gameInfo, text, status: ''|'loading'|'streaming'|'done'|'stopped'|'error', error, thinking, startedAt, controller, verdict }
+            function newCommentaryState(key) {
+                const c = { key, model: '', moves, gameInfo: currentGameInfo || {}, text: '', status: '', error: '', thinking: 0, startedAt: 0, controller: null };
+                const saved = key ? GameCommentary.loadArticle(key) : null;
+                if (saved && GameCommentary.isClassifierVerdict(saved.text)) GameCommentary.removeArticle(key);
+                else if (saved) Object.assign(c, { text: saved.text, model: saved.model || '', status: 'done' });
                 return c;
             }
 
             function abortCommentary(c) {
-                if (c) Object.values(c.entries).forEach(e => { if (e.controller) e.controller.abort(); });
+                if (c && c.controller) c.controller.abort();
             }
 
-            // The commentary of the game on screen; null while it is being written for another game
-            // that the engine is analyzing (that one is kept, not replaced).
+            // The article of the game on screen.
             function commentaryState() {
                 const key = commentaryGameKey();
                 if (!key || typeof GameCommentary === 'undefined') return null;
                 if (commentary && commentary.key === key) return commentary;
-                if (commentary && commentary.live) return null;
                 abortCommentary(commentary);
-                commentary = newCommentaryState(key, moves, currentGameInfo || {}, moves.map(() => true));
+                commentary = newCommentaryState(key);
                 return commentary;
             }
 
-            // A new game is on screen (preprocessMoveData). The commentary written while it was being
-            // analyzed is adopted as is: same entries, requests in flight keep going.
+            // A new game is on screen (preprocessMoveData). The same game loaded again keeps its article.
             function resetCommentary() {
-                clearTimeout(commentaryDwellTimer);
                 if (typeof GameCommentary === 'undefined' || !moves.length) return;
                 const key = commentaryGameKey();
                 if (commentary && commentary.key === key) {
-                    commentary.live = false;
                     commentary.moves = moves;
                     commentary.gameInfo = currentGameInfo || {};
-                    commentary.ready = moves.map(() => true);
                     return;
                 }
                 abortCommentary(commentary);
@@ -13711,47 +13774,23 @@
                 commentaryState();
             }
 
-            // analyzeGame hooks: start writing while the engine works through the game.
-            function startLiveCommentary(info) {
-                if (typeof GameCommentary === 'undefined' || typeof SelfReview === 'undefined' || !info || !Array.isArray(info.sans) || !info.sans.length) return;
-                const placeholders = info.sans.map((san, i) => ({ move: san, move_number: Math.floor(i / 2) + 1, is_white: i % 2 === 0 }));
-                const key = SelfReview.gameKey(placeholders);
-                if (commentary && commentary.key !== key) abortCommentary(commentary);
-                if (!commentary || commentary.key !== key) commentary = newCommentaryState(key, placeholders, info.game_info, placeholders.map(() => false));
-                else Object.assign(commentary, { moves: placeholders, ready: placeholders.map(() => false), gameInfo: info.game_info || {} });
-                commentary.live = true;
-                pumpCommentaryQueue();
-            }
-
-            function liveCommentaryMove(result, index) {
-                const c = commentary;
-                if (!c || !c.live || !result || index < 0 || index >= c.moves.length) return;
-                c.moves[index] = result;
-                c.ready[index] = true;
-                pumpCommentaryQueue();
-            }
-
-            // The analysis was cancelled or failed: stop writing for that game.
-            function stopLiveCommentary() {
-                if (!commentary || !commentary.live) return;
-                abortCommentary(commentary);
-                commentary = null;
-            }
-
-            // After an analysis in AI mode, write whatever is left of the game.
+            // After an analysis (and whenever AI mode or the settings change): write the article
+            // unless it is written, being written, stopped or failed (those wait for the player).
             function maybeAutoStartCommentary() {
-                pumpCommentaryQueue();
+                const c = commentaryState();
+                if (commentaryCanWrite(c) && !c.status) requestArticle(c);
             }
 
             // Moves the model wrote become buttons: a move of the game goes to it, any other line
-            // opens on the board (commentaryShownLines holds the lines of the text on screen).
+            // opens on the board (commentaryShownLines holds the lines of the article on screen).
+            // While the text streams in, it is shown without buttons (linking checks every move).
             let commentaryShownLines = [];
-            function commentaryTextHtml(text, c, index) {
-                const linked = (c && GameCommentary.linkMoves)
-                    ? GameCommentary.linkMoves(text, { moves: c.moves, index })
+            function commentaryTextHtml(text, c, withMoves) {
+                const linked = (withMoves && GameCommentary.linkMoves)
+                    ? GameCommentary.linkMoves(text, { moves: c.moves })
                     : { segments: [{ type: 'text', text: String(text || '') }], lines: [] };
                 commentaryShownLines = linked.lines;
-                // Markdown first (moves stand in as placeholders), then the move buttons go back in
+                // Markdown first (moves stand in as placeholders), then the move buttons go back in.
                 // Same look as the moves in the engine bubble; a line's moves are .var-move-btn steps,
                 // so jumpToVariationStep highlights the one on the board (click or ←/→), like the engine lines
                 const buttons = [];
@@ -13759,12 +13798,12 @@
                     if (s.type !== 'move') return s.text;
                     const label = escapeHtml(s.text);
                     if (s.gameIndex !== null) {
-                        const onBoard = !isInVariationMode && s.gameIndex === currentMoveIndex;
-                        buttons.push(`<button type="button" class="gc-move${onBoard ? ' active' : ''}" data-gc-move data-gc-game="${s.gameIndex}" title="Go to this move of the game">${label}</button>`);
+                        buttons.push(`<button type="button" class="gc-move" data-gc-move data-gc-game="${s.gameIndex}" title="Go to this move of the game">${label}</button>`);
                     } else {
-                        const lineType = commentaryLineType(s.line, linked.lines[s.line]);
-                        const onBoard = isInVariationMode && activeVariation && activeVariation.lineType === lineType && activeVariation.stepIndex === s.step;
-                        buttons.push(`<button type="button" class="gc-move var-move-btn var-btn-better${onBoard ? ' active' : ''}" data-gc-move data-move-idx="${currentMoveIndex}" data-type="${escapeHtml(lineType)}" data-step="${s.step}" title="Show this line on the board">${label}</button>`);
+                        const line = linked.lines[s.line];
+                        const lineType = commentaryLineType(s.line, line);
+                        const after = line.gameStart === null ? -1 : line.gameStart - 1; // the game move the line branches off after
+                        buttons.push(`<button type="button" class="gc-move var-move-btn var-btn-better" data-gc-move data-move-idx="${after}" data-type="${escapeHtml(lineType)}" data-step="${s.step}" title="Show this line on the board">${label}</button>`);
                     }
                     return `${GameCommentary.PLACEHOLDER_OPEN}${buttons.length - 1}${GameCommentary.PLACEHOLDER_CLOSE}`;
                 }).join('');
@@ -13772,22 +13811,36 @@
                 return GameCommentary.markdownToHtml(raw.trim()).replace(placeholder, (m, i) => buttons[Number(i)] || '');
             }
 
+            // A click in the article keeps it where it is (the move is already in view).
+            let commentaryKeepScroll = false;
             function openCommentaryMove(el) {
-                if (el.dataset.gcGame !== undefined) {
-                    goToMove(parseInt(el.dataset.gcGame, 10));
-                    return;
+                commentaryKeepScroll = true;
+                try {
+                    if (el.dataset.gcGame !== undefined) {
+                        goToMove(parseInt(el.dataset.gcGame, 10));
+                        return;
+                    }
+                    const after = parseInt(el.dataset.moveIdx, 10);
+                    const step = parseInt(el.dataset.step, 10);
+                    if (!el.dataset.type || isNaN(after) || isNaN(step)) return;
+                    // The game goes to where the line branches off first, so "back to the game" lands there
+                    if (after !== currentMoveIndex || isInVariationMode) {
+                        if (after >= 0) goToMove(after);
+                        else goToFirstMove();
+                    }
+                    jumpToVariationStep(after, el.dataset.type, step, false);
+                } finally {
+                    commentaryKeepScroll = false;
                 }
-                const step = parseInt(el.dataset.step, 10);
-                if (el.dataset.type && !isNaN(step)) jumpToVariationStep(parseInt(el.dataset.moveIdx, 10), el.dataset.type, step, false);
             }
 
-            // Line type of a line in the commentary on screen: its index, plus its moves so that
+            // Line type of a line in the article on screen: its index, plus its moves so that
             // a line from another (or regenerated) text is never mistaken for it.
             function commentaryLineType(i, line) {
                 return `commentary-${i}-${line.sans.join('_')}`;
             }
 
-            // getVariationData for 'commentary-…' lines (the lines of the commentary on screen).
+            // getVariationData for 'commentary-…' lines (the lines of the article on screen).
             function getCommentaryVariationData(moveIndex, lineType) {
                 const i = parseInt(lineType.split('-')[1], 10);
                 const line = commentaryShownLines[i];
@@ -13805,79 +13858,104 @@
                 };
             }
 
-            function commentaryLive(entry) {
-                return Boolean(entry) && (entry.status === 'loading' || entry.status === 'streaming');
+            function commentaryLive(c) {
+                return Boolean(c) && (c.status === 'loading' || c.status === 'streaming');
             }
 
-            // First-time LLM setup in the bubble (later changes: Settings → AI commentary). Kept in this browser only.
+            // First-time LLM setup in the article panel (later changes: Settings → AI commentary). Kept in this browser only.
             function commentarySettingsHtml() {
                 const s = GameCommentary.loadSettings();
                 return `<form class="gc-settings" data-gc-settings autocomplete="off">
-                    <div class="gc-muted">An LLM of your choice writes the commentary from the engine's analysis. Any OpenAI-compatible API works. These settings stay in this browser, and the key is only sent to this URL.</div>
+                    <div class="gc-muted">An LLM of your choice writes an article about the game from the engine's analysis. Any OpenAI-compatible API works. These settings stay in this browser, and the key is only sent to this URL.</div>
                     <label>Base URL<input name="baseUrl" type="url" value="${escapeHtml(s.baseUrl)}" placeholder="${GameCommentary.DEFAULT_BASE_URL}" spellcheck="false"></label>
                     <label>Model<input name="model" value="${escapeHtml(s.model)}" placeholder="e.g. gpt-4o-mini" spellcheck="false" required></label>
                     <label>API key<input name="apiKey" type="password" value="${escapeHtml(s.apiKey)}" placeholder="Not needed for a local server" spellcheck="false" autocomplete="off"></label>
                     <div class="gc-actions">
-                        <button type="submit" class="gc-save">Save and write the commentary</button>
+                        <button type="submit" class="gc-save">Save and write the article</button>
                     </div>
                 </form>`;
             }
 
             // While the model has not written anything yet: thinking (reasoning models) or waiting.
-            function commentaryWaitingHtml(entry) {
-                const secs = entry && entry.startedAt ? Math.floor((Date.now() - entry.startedAt) / 1000) : 0;
+            function commentaryWaitingHtml(c) {
+                const secs = c && c.startedAt ? Math.floor((Date.now() - c.startedAt) / 1000) : 0;
                 const timer = secs >= 2 ? ` <span class="gc-timer">${secs}s</span>` : '';
-                return entry && entry.thinking
-                    ? `<div class="gc-muted">The model is thinking it through before it starts writing…${timer}</div>`
-                    : `<div class="gc-muted">Writing the commentary for this move…${timer}</div>`;
+                return c && c.thinking
+                    ? `<div class="gc-muted">The model is thinking the game through before it starts writing…${timer}</div>`
+                    : `<div class="gc-muted">Writing the article about this game…${timer}</div>`;
             }
 
-            // Body of the coach bubble in AI mode for move `index` (-1 = start position).
-            function commentaryBodyHtml(index) {
+            // The article (or the setup form, the wait, the error) and its actions.
+            function commentaryArticleBodyHtml() {
                 if (!commentaryConfigured()) return commentarySettingsHtml();
                 const c = commentaryState();
-                if (!c) return '<div class="gc-muted">The AI commentary is being written for the game the engine is analyzing.</div>';
-                const entry = c.entries[index];
-                if (!entry) requestCommentarySoon(index);
-                const live = commentaryLive(entry);
-                let body;
-                if (entry && entry.status === 'error') body = `<div class="gc-error">${escapeHtml(entry.error)}</div>`;
-                else if (entry && entry.text && !GameCommentary.isClassifierVerdict(entry.text)) body = commentaryTextHtml(entry.text, c, index);
-                else if (entry && entry.status === 'stopped') body = '<div class="gc-muted">Stopped.</div>';
-                else body = commentaryWaitingHtml(entry);
-                if (!entry) return body; // about to be requested: no actions yet
-                const progress = commentaryProgressHtml(c);
+                if (!c) return '';
+                const live = commentaryLive(c);
+                let body = '';
+                if (c.text && !GameCommentary.isClassifierVerdict(c.text)) body = commentaryTextHtml(c.text, c, !live);
+                else if (c.status !== 'error' && c.status !== 'stopped') body = commentaryWaitingHtml(c);
+                if (c.status === 'stopped') body += `<div class="gc-muted">${c.text ? 'Stopped before the end.' : 'Stopped.'}</div>`;
+                if (c.status === 'error') body += `<div class="gc-error">${escapeHtml(c.error)}</div>`;
                 const actions = live
-                    ? `<span class="gc-live">Writing</span>${progress}<button type="button" class="gc-link" data-gc-action="stop">Stop</button>`
-                    : `${progress}<button type="button" class="gc-link" data-gc-action="restart">${entry && entry.status === 'error' ? 'Try again' : 'Regenerate'}</button>`;
-                return `${body}<div class="gc-actions">${actions}</div>`;
+                    ? `<span class="gc-live">Writing</span><button type="button" class="gc-link" data-gc-action="stop">Stop</button>`
+                    : c.status ? `<button type="button" class="gc-link" data-gc-action="restart">${c.status === 'error' ? 'Try again' : 'Regenerate'}</button>` : '';
+                return `${body}${actions ? `<div class="gc-actions">${actions}</div>` : ''}`;
             }
 
-            // Start position in AI mode: the intro, in the same coach bubble.
-            function commentaryIntroHtml() {
-                if (explainSource !== 'ai' || !commentaryAvailable()) return '';
-                return `<div class="cc-coach-line">
-                    <span class="cc-coach-avatar" aria-hidden="true">${CC_COACH_AVATAR_SVG}</span>
-                    <div class="cc-coach-bubble">
-                        <div class="cc-coach-head"><b>Before the first move</b>${explainSourceToggleHtml()}</div>
-                        <div class="gc-body" data-gc-body>${commentaryBodyHtml(-1)}</div>
-                    </div>
-                </div>`;
+            // AI mode: the article in place of the move explanation (any move, and the start
+            // position). Built once per game; moving through the game only moves the highlight.
+            // False in Engine mode, or when there is no game to write about.
+            function showCommentaryArticle() {
+                if (explainSource !== 'ai' || !commentaryAvailable() || !moveExplanation) return false;
+                const c = commentaryState();
+                const bar = srBackBarHtml();
+                const sig = `${c ? c.key : ''}|${bar ? 'bar' : ''}`;
+                const shown = moveExplanation.querySelector('[data-gc-article]');
+                if (c && !c.status && commentaryCanWrite(c)) setTimeout(maybeAutoStartCommentary, 0);
+                if (!shown || shown.dataset.gcArticle !== sig) {
+                    moveExplanation.innerHTML = `${bar}<article class="gc-article" data-gc-article="${escapeHtml(sig)}">
+                        <div class="gc-article-head"><span class="gc-article-kicker"><i class="bi bi-mic"></i> Game article</span>${explainSourceToggleHtml()}</div>
+                        <div class="gc-body gc-article-body" data-gc-body>${commentaryArticleBodyHtml()}</div>
+                    </article>`;
+                }
+                syncCommentaryArticle(!commentaryKeepScroll);
+                return true;
             }
 
-            // Update the bubble body in place while text streams in (no full re-render).
+            // Highlight the move on the board in the article, and mark the passage about it (the first
+            // mention of that move, or of the last game move before it that the article names).
+            function syncCommentaryArticle(scroll) {
+                const article = moveExplanation && moveExplanation.querySelector('[data-gc-article]');
+                if (!article) return;
+                let passage = null;
+                let passageIndex = -2;
+                article.querySelectorAll('.gc-move[data-gc-game]').forEach(btn => {
+                    const i = parseInt(btn.dataset.gcGame, 10);
+                    btn.classList.toggle('active', !isInVariationMode && i === currentMoveIndex);
+                    if (i <= currentMoveIndex && i > passageIndex) { passage = btn; passageIndex = i; }
+                });
+                article.querySelectorAll('.gc-current').forEach(el => el.classList.remove('gc-current'));
+                const block = passage && passage.closest('p, li, blockquote');
+                if (block) block.classList.add('gc-current');
+                if (!scroll) return;
+                if (currentMoveIndex < 0) moveExplanation.scrollTop = 0;
+                else if (block) block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            // Update the article body in place while text streams in (no full re-render).
             function renderCommentaryBody() {
                 commentaryRenderPending = false;
                 if (!moveExplanation || explainSource !== 'ai' || !commentaryAvailable()) return;
                 const body = moveExplanation.querySelector('[data-gc-body]');
-                if (body) body.innerHTML = commentaryBodyHtml(currentMoveIndex);
+                if (!body) return;
+                body.innerHTML = commentaryArticleBodyHtml();
+                syncCommentaryArticle(false);
             }
 
-            // Ticks the "Writing… 12s" counter until the first words of the move on screen arrive.
+            // Ticks the "Writing… 12s" counter until the first words arrive.
             let commentaryWaitTimer = null;
             function syncCommentaryWaitTimer() {
-                const entry = commentary && commentary.entries[currentMoveIndex];
-                const waiting = commentaryLive(entry) && !entry.text;
+                const waiting = commentaryLive(commentary) && !commentary.text;
                 if (waiting && !commentaryWaitTimer) commentaryWaitTimer = setInterval(scheduleCommentaryRender, 1000);
                 if (!waiting && commentaryWaitTimer) { clearInterval(commentaryWaitTimer); commentaryWaitTimer = null; }
             }
@@ -13889,163 +13967,87 @@
                 (window.requestAnimationFrame || setTimeout)(renderCommentaryBody);
             }
 
-            // Ask for the move on screen once the player stops on it for a moment.
-            let commentaryDwellTimer = null;
-            function requestCommentarySoon(index) {
-                clearTimeout(commentaryDwellTimer);
-                commentaryDwellTimer = setTimeout(() => {
-                    if (index === currentMoveIndex) pumpCommentaryQueue();
-                }, COMMENTARY_DWELL_MS);
-            }
+            const COMMENTARY_VERDICT_ERROR = 'The model answered with a content-safety verdict ("User Safety: safe") instead of an article. Check that the Model in Settings → AI commentary is a chat model, not a guard/safety model, and that no guardrail on the endpoint replaces the answer.';
 
-            // A move can be written once it and the move before it are analyzed (the notes say
-            // whether it punished or missed the previous move's mistake).
-            function commentaryReady(c, i) {
-                return i < 0 || (Boolean(c.ready[i]) && (i === 0 || Boolean(c.ready[i - 1])));
-            }
-
-            // Order to write the game in: from the move on screen to the end, then the earlier
-            // moves; from the intro when nothing is on screen yet (during the analysis).
-            function commentaryReadingOrder(c, onScreen) {
-                const from = onScreen ? currentMoveIndex : -1;
-                const order = [];
-                for (let i = from; i < c.moves.length; i++) order.push(i);
-                for (let i = -1; i < from; i++) order.push(i);
-                return order;
-            }
-
-            // Writes the commentary ahead of time while AI mode is on: the move on screen first
-            // (it may be a jump), then every free request slot walks through the game in order,
-            // each move once it is analyzed. Two moves are written at once: a move does not need the
-            // text of the one before it.
-            // Paused by an error or Stop, until Regenerate, new settings or the toggle resume it.
-            function pumpCommentaryQueue() {
-                const c = (commentary && commentary.live) ? commentary : commentaryState();
-                if (!commentaryCanWrite(c)) return;
-                const onScreen = commentaryOnScreen(c);
-                if (onScreen && !c.entries[currentMoveIndex] && commentaryReady(c, currentMoveIndex)) requestMoveCommentary(c, currentMoveIndex);
-                if (c.paused) return;
-                for (const next of commentaryReadingOrder(c, onScreen)) {
-                    if (Object.values(c.entries).filter(commentaryLive).length >= COMMENTARY_MAX_ACTIVE) return;
-                    if (c.entries[next]) continue;
-                    if (!commentaryReady(c, next)) return; // in order: wait for the engine
-                    requestMoveCommentary(c, next, false, false, true);
-                }
-            }
-
-            function resumeCommentaryQueue() {
-                if (commentary) commentary.paused = false;
-            }
-
-            // "12/60 written" while the game is still being written ahead.
-            function commentaryProgressHtml(c) {
-                const total = c.moves.length + 1;
-                let done = 0;
-                for (let i = -1; i < c.moves.length; i++) if (c.entries[i] && c.entries[i].status === 'done') done++;
-                if (done >= total) return '';
-                return `<span class="gc-progress">${done}/${total} written${c.paused ? ', paused' : ''}</span>`;
-            }
-
-            // Make room for a request: drop in-flight requests for moves that are neither
-            // on screen nor next, and have not written anything yet.
-            function commentaryMakeRoom(c, keep) {
-                const live = Object.keys(c.entries).filter(i => commentaryLive(c.entries[i]));
-                if (live.length < COMMENTARY_MAX_ACTIVE) return true;
-                const victim = live.find(i => !keep.includes(Number(i)) && !c.entries[i].text);
-                if (victim === undefined) return false;
-                c.entries[victim].controller.abort();
-                delete c.entries[victim];
-                return true;
-            }
-
-            const COMMENTARY_VERDICT_ERROR = 'The model answered with a content-safety verdict ("User Safety: safe") instead of commentary. Check that the Model in Settings → AI commentary is a chat model, not a guard/safety model, and that no guardrail on the endpoint replaces the answer.';
-
-            async function requestMoveCommentary(c, index, force, retry, background) {
-                if (!commentaryCanWrite(c) || index < -1 || index >= c.moves.length || !commentaryReady(c, index)) return;
-                const existing = c.entries[index];
-                if (existing && (commentaryLive(existing) || !force)) return;
-                if (!background && !commentaryMakeRoom(c, [currentMoveIndex])) return;
-
+            async function requestArticle(c, retry) {
+                if (!commentaryCanWrite(c) || commentaryLive(c)) return;
                 const settings = GameCommentary.loadSettings();
-                const messages = GameCommentary.buildMoveMessages({ moves: c.moves, index, gameInfo: c.gameInfo });
-                const entry = { text: '', status: 'loading', error: '', thinking: 0, startedAt: Date.now(), controller: new AbortController(), background: Boolean(background) };
-                c.entries[index] = entry;
-                c.model = settings.model;
+                const messages = GameCommentary.buildArticleMessages({ moves: c.moves, gameInfo: c.gameInfo });
+                const controller = new AbortController();
+                Object.assign(c, { text: '', status: 'loading', error: '', thinking: 0, startedAt: Date.now(), controller, verdict: false, model: settings.model });
                 scheduleCommentaryRender();
 
                 try {
                     const raw = await GameCommentary.stream(settings, messages, {
-                        signal: entry.controller.signal,
+                        signal: controller.signal,
                         onText: (text) => {
-                            entry.text = GameCommentary.cleanText(text, true);
-                            entry.status = 'streaming';
-                            if (index === currentMoveIndex) scheduleCommentaryRender();
+                            if (c.controller !== controller) return;
+                            c.text = GameCommentary.cleanText(text, true);
+                            c.status = 'streaming';
+                            scheduleCommentaryRender();
                         },
                         onThinking: (chars) => {
-                            entry.thinking = chars;
-                            if (index === currentMoveIndex) scheduleCommentaryRender();
+                            if (c.controller !== controller) return;
+                            c.thinking = chars;
+                            scheduleCommentaryRender();
                         }
                     });
-                    entry.text = GameCommentary.cleanText(raw);
-                    entry.status = entry.text ? 'done' : 'error';
-                    if (!entry.text) entry.error = 'The model returned no commentary for this move.';
-                    if (GameCommentary.isClassifierVerdict(entry.text)) {
-                        entry.status = 'error';
-                        entry.error = COMMENTARY_VERDICT_ERROR;
-                        entry.verdict = true;
+                    if (c.controller !== controller) return;
+                    c.text = GameCommentary.cleanText(raw);
+                    c.status = c.text ? 'done' : 'error';
+                    if (!c.text) c.error = 'The model returned no article.';
+                    if (GameCommentary.isClassifierVerdict(c.text)) {
+                        c.status = 'error';
+                        c.error = COMMENTARY_VERDICT_ERROR;
+                        c.verdict = true;
                     }
                 } catch (e) {
-                    const aborted = entry.controller.signal.aborted;
-                    entry.status = aborted ? 'stopped' : 'error';
-                    if (!aborted) entry.error = e.message || String(e);
+                    if (c.controller !== controller) return;
+                    const aborted = controller.signal.aborted;
+                    c.status = aborted ? 'stopped' : 'error';
+                    if (!aborted) c.error = e.message || String(e);
                 }
-                entry.controller = null;
-                if (commentary !== c || c.entries[index] !== entry) return;
-                if (entry.verdict && !retry) {
-                    delete c.entries[index];
-                    return requestMoveCommentary(c, index, true, true, background);
+                c.controller = null;
+                if (commentary !== c) return;
+                if (c.verdict && !retry) {
+                    c.status = '';
+                    return requestArticle(c, true);
                 }
-                if (entry.status === 'done') GameCommentary.saveMove(c.key, index, entry.text, c.model);
-                // A failing API should not be hit once per move: wait for the player
-                if (entry.status === 'error') c.paused = true;
+                if (c.status === 'done') GameCommentary.saveArticle(c.key, c.text, c.model);
                 scheduleCommentaryRender();
-                pumpCommentaryQueue();
             }
 
-            // Stop writing: the move on screen and the writers ahead.
             function stopCommentary() {
-                if (!commentary) return;
-                commentary.paused = true;
                 abortCommentary(commentary);
             }
 
-            function regenerateMoveCommentary(index) {
+            function regenerateArticle() {
                 const c = commentaryState();
                 if (!c) return;
-                const entry = c.entries[index];
-                if (entry && entry.controller) entry.controller.abort();
-                delete c.entries[index];
-                GameCommentary.removeMove(c.key, index);
-                c.paused = false;
-                requestMoveCommentary(c, index, true);
-                showMoveExplanation(index);
-                pumpCommentaryQueue();
+                abortCommentary(c);
+                c.controller = null;
+                c.status = '';
+                GameCommentary.removeArticle(c.key);
+                requestArticle(c);
             }
 
-            // Re-render the bubble when it is on screen (analysis of a loaded game).
+            // Re-render the article (or the move explanation) when it is on screen.
             function refreshCommentaryView() {
-                if (moves.length && currentAppMode === 'analysis' && !isSelfReviewActive()) showMoveExplanation(currentMoveIndex);
+                if (moves.length && currentAppMode === 'analysis' && !isSelfReviewActive()) {
+                    renderCommentaryBody();
+                    showMoveExplanation(currentMoveIndex);
+                }
             }
 
             // Save LLM settings (from the bubble or the Settings menu). False when incomplete.
             function commitCommentarySettings(settings) {
                 if (!GameCommentary.isConfigured(settings)) return false;
                 GameCommentary.saveSettings(settings);
-                // New settings: retry the moves that failed with the old ones
-                if (commentary) Object.keys(commentary.entries).forEach(i => { if (commentary.entries[i].status === 'error') delete commentary.entries[i]; });
-                resumeCommentaryQueue();
+                // New settings: retry an article that failed with the old ones
+                if (commentary && commentary.status === 'error') commentary.status = '';
                 syncLlmSettingsForms();
                 refreshCommentaryView();
+                maybeAutoStartCommentary();
                 return true;
             }
 
@@ -14115,6 +14117,7 @@
                     btn.classList.toggle('active', btn.dataset.ccMode === currentAppMode);
                 });
                 if (currentAppMode === 'coach') closeReviewSummary();
+                syncCommentaryTabs();
             }
 
             function applyBoardTheme(boardTheme) {
@@ -14186,6 +14189,14 @@
                 const copyPgn = document.getElementById('ccCopyPgn');
                 if (copyPgn) copyPgn.addEventListener('click', () => copyAnnotatedPgn(copyPgn));
 
+                const gcTabs = document.getElementById('gcTabs');
+                if (gcTabs) {
+                    gcTabs.addEventListener('click', (e) => {
+                        const tab = e.target.closest('[data-gc-source]');
+                        if (tab && tab.dataset.gcSource !== explainSource) setExplainSource(tab.dataset.gcSource);
+                    });
+                }
+
                 if (moveExplanation) {
                     moveExplanation.addEventListener('click', (e) => {
                         const source = e.target.closest('[data-gc-source]');
@@ -14196,7 +14207,7 @@
                         if (!action) return;
                         const act = action.dataset.gcAction;
                         if (act === 'stop') stopCommentary();
-                        else if (act === 'restart') regenerateMoveCommentary(currentMoveIndex);
+                        else if (act === 'restart') regenerateArticle();
                     });
                     moveExplanation.addEventListener('submit', (e) => {
                         const form = e.target.closest('[data-gc-settings]');

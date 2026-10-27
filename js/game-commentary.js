@@ -1,16 +1,15 @@
 /**
- * game-commentary.js - GothamChess-style move-by-move commentary for WhyBlunder.
+ * game-commentary.js - GothamChess-style game article for WhyBlunder.
  *
- * Commentary is written one move at a time, like a video where the viewer
- * only sees the board up to the current move. Each request is small: the
- * game header and that move's facts (the position, the moves so far, its
- * engine notes from PgnExport.moveNotes), so it can be sent as soon as that
- * move is analyzed, while the engine is still working on the rest of the
- * game. Moves do not depend on each other's text, so any number of them
- * can be written at once.
+ * Once the engine has analyzed the game, an LLM writes one article about it,
+ * like a GothamChess recap video turned into a blog post: a title, an intro,
+ * sections that follow the story of the game, and the lessons to take away.
+ * The request (buildArticleMessages) holds the game header, the moves, and
+ * the engine notes of the key moments only (PgnExport.moveNotes): the moves
+ * that decided the game, not a comment on every move.
  *
- * linkMoves() finds the moves the model wrote ("1...e6", "2.Nf3 d5",
- * "Qxf7#") and checks them with chess.js, so the UI can make them clickable.
+ * linkMoves() finds the moves the model wrote ("14... Qd7", "15. Qh5 g6")
+ * and checks them with chess.js, so the UI can make them clickable.
  *
  * The browser calls the API directly (stream()), with the base URL, model
  * and key the player saved in localStorage (loadSettings/saveSettings): the
@@ -26,45 +25,47 @@
     'use strict';
 
     const SYSTEM_PROMPT = [
-        'You are a chess commentator in the style of Levy Rozman (GothamChess): punchy, funny and direct, talking',
-        'straight to the viewer, naming the tactics (fork, pin, skewer, discovered attack, back-rank mate...), hyping the',
-        'great moves and roasting the blunders, always with the reason behind it.',
+        'You are a chess writer with the voice of Levy Rozman (GothamChess): punchy, funny and direct, talking straight to',
+        'the reader, naming the tactics (fork, pin, skewer, discovered attack, back-rank mate...), hyping the great moves and',
+        'roasting the blunders, always with the reason behind it.',
         '',
-        'You commentate one move at a time, like a video where the viewer only sees the board up to the current move.',
-        'You get the moves so far and a chess engine\'s notes for the move at hand (verdict, comment, better lines, the',
-        'punishment). Those notes are your private preparation. The viewer never sees them, so do not read them out or',
-        'refer to them: turn them into explanations.',
+        'You write one article about a whole game, like a GothamChess recap video turned into a blog post. You get the moves',
+        'of the game and a chess engine\'s notes on its key moments (verdict, comment, better lines, the punishment). Those',
+        'notes are your private preparation. The reader never sees them, so do not read them out or refer to them: turn them',
+        'into explanations.',
         '',
-        'Teach, do not recap. The viewer can already read the engine\'s one-line verdict, so do not just restate it',
-        '("Nf6 was a mistake, g6 was better"). Add what it does not say: why the move works or fails, what each side is',
-        'aiming for, where the alternatives lead, and the pattern to remember. Stay concrete: every sentence says something',
-        'about the position; no filler, no warm-up ("Alright, let\'s see what happens here"), no questions to the viewer, no',
-        'recap of earlier moves. Use the length you are given: short for quiet moves, room to explain at key moments.',
-        '- Say what the move does: the plan, the piece it activates, the square or weakness it targets, the threat it',
-        '  makes or stops.',
+        'Tell the story of the game, do not walk through it move by move. Follow the game in order, spend your words on the',
+        'moments that decided it, and cover the quiet stretches in a sentence or two. Teach, do not recap: the reader wants',
+        'the why, what each side is aiming for, where the alternatives lead and the pattern to remember. Every sentence says',
+        'something about the game: no filler, no warm-up, no questions to the reader.',
+        '- Structure: a title on the first line ("# ..."), a short intro (the players, the opening and its main idea), then',
+        '  sections with "## " headings that follow the game, named after what happens in them (not "Middlegame" but "The',
+        '  knight that never came back"), and a last section "## Lessons" with 2 to 4 bullet points the reader can use in',
+        '  their own games.',
         '- For an inaccuracy, mistake or blunder, say exactly what goes wrong (the hanging piece, the tactic it allows, the',
-        '  weakness it creates) and play the punishing line out, saying what its key moves achieve ("Nf6?? and Qxf7 is',
-        '  mate: f7 was only defended by the king").',
+        '  weakness it creates) and play the punishing line out, saying what its key moves achieve ("3... Nf6?? and 4. Qxf7',
+        '  is mate: f7 was only defended by the king").',
         '- For the better move and the other alternatives in the notes, explain the idea behind them and how play would go',
-        '  on (the plan, the threat, the kind of position it leads to), not only their names. When two moves are close,',
-        '  say what makes them different.',
+        '  on (the plan, the threat, the kind of position it leads to), not only their names.',
         '- For a great or brilliant move, say why it works and what goes wrong for the opponent after the natural replies.',
-        '- When the opponent could have punished the previous move and did not, show what they missed and why it works.',
-        '- End a key moment with a short takeaway: a pattern or rule of thumb the viewer can use in their own games.',
+        '- When a player misses the punishment of the opponent\'s mistake, show what they missed and why it works.',
+        '- Write every move with its number, in standard algebraic notation: "14. Nxe5", "14... Qd7", and number the',
+        '  lines too ("15. Qh5 g6 16. Qxe5"). The reader can click moves written like that to see them on the board.',
         '- Never quote evaluation numbers (+1.35, -0.61, #3) and never say "the engine says", "the engine notes",',
-        '  "according to the notes", "Stockfish evaluates", "the computer gives" or "the evaluation is". Give the reason, not the verdict; when the overall picture matters,',
-        '  say it in a few plain words ("White is just winning", "Black is up a piece").',
-        '- Stay faithful to the notes and the position: do not invent tactics, threats or lines they do not support, and',
-        '  only mention moves that are legal in the position.',
-        '- Write moves in standard algebraic notation (e.g. 14. Nxe5 dxe5 15. Qh5).',
-        '- Answer with the commentary itself: plain text, no heading, no move label, no notes about these instructions,',
-        '  and no thinking out loud.'
+        '  "according to the notes", "Stockfish evaluates", "the computer gives" or "the evaluation is". Give the reason, not',
+        '  the verdict; when the overall picture matters, say it in a few plain words ("White is just winning", "Black is up',
+        '  a piece").',
+        '- Stay faithful to the notes and the moves: do not invent tactics, threats or lines they do not support, and only',
+        '  mention moves that are legal in the position.',
+        '- Answer with the article itself, in markdown: no preamble, no notes about these instructions, and no thinking out',
+        '  loud.'
     ].join('\n');
 
     const CRITICAL = ['inaccuracy', 'mistake', 'miss', 'blunder', 'brilliant', 'great'];
+    const FLAWED = ['inaccuracy', 'mistake', 'miss', 'blunder'];
 
-    const STORAGE_KEY = 'whyblunder_commentary_v5'; // v5: teaching commentary (v4: very short, v3: long, v1/v2: one-shot)
-    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3', 'whyblunder_commentary_v4'];
+    const STORAGE_KEY = 'whyblunder_commentary_v6'; // v6: one article per game (v3-v5: per move, v1/v2: one-shot sections)
+    const OLD_STORAGE_KEYS = ['whyblunder_commentary_v1', 'whyblunder_commentary_v2', 'whyblunder_commentary_v3', 'whyblunder_commentary_v4', 'whyblunder_commentary_v5'];
     const SETTINGS_KEY = 'whyblunder_llm_settings_v1';
     const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
     const MAX_STORED = 8;
@@ -84,7 +85,7 @@
         return String(san || '').replace(/[?!+#]+$/g, '');
     }
 
-    /** SAN as shown to the viewer: check and mate signs kept, ?! annotations dropped. */
+    /** SAN as shown to the reader: check and mate signs kept, ?! annotations dropped. */
     function displaySan(san) {
         return String(san || '').replace(/[?!]+$/g, '');
     }
@@ -118,86 +119,100 @@
         return `White: ${name(info.white, info.white_elo)}, Black: ${name(info.black, info.black_elo)}`;
     }
 
+    /** First move of a punishment line ("4. Qxf7#" -> "Qxf7"). */
+    function firstSan(line) {
+        return bareSan(String(line || '').replace(/^\d+\.(\.\.)?\s*/, '').split(/\s+/)[0]);
+    }
+
     /**
-     * Chat messages asking for the commentary of moves[index] (-1 = the intro,
-     * before the first move). Only moves[0..index] (and their analysis) are
-     * needed, so a move can be commented on while later ones are still being
-     * analyzed.
+     * The moves worth an explanation: inaccuracies, mistakes, misses, blunders,
+     * great and brilliant moves, plus the moves that punish the previous mistake
+     * or miss its punishment. Each { index, key, notes, punishes, missedPunishment }.
+     */
+    function keyMoments(moves, P) {
+        const list = moves || [];
+        const notesOf = i => (P && P.moveNotes ? P.moveNotes(list, i) : null);
+        const out = [];
+        let prevNotes = null;
+        list.forEach((move, index) => {
+            const key = qualityKey(move);
+            const prev = index > 0 ? list[index - 1] : null;
+            const punishFirst = prev && FLAWED.includes(qualityKey(prev)) && prevNotes && prevNotes.punishment ? firstSan(prevNotes.punishment) : '';
+            const punishes = Boolean(punishFirst && punishFirst === bareSan(move.move));
+            const missedPunishment = Boolean(punishFirst && punishFirst !== bareSan(move.move));
+            const critical = CRITICAL.includes(key) || punishes || missedPunishment;
+            const notes = critical ? notesOf(index) : null; // the next move checks its punishment
+            if (critical) out.push({ index, key, notes, punishes, missedPunishment, prevPunishment: prevNotes ? prevNotes.punishment : '' });
+            prevNotes = notes;
+        });
+        return out;
+    }
+
+    /** Words to ask for: more key moments, a longer article, but a short game stays short. */
+    function articleLength(momentCount, plies) {
+        let words = 250 + 60 * momentCount;
+        if (plies) words = Math.min(words, 300 + 25 * plies);
+        return Math.max(300, Math.min(1000, Math.round(words / 50) * 50));
+    }
+
+    /** 'an inaccuracy', 'a mistake' */
+    function withArticle(word) {
+        return `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
+    }
+
+    /**
+     * Chat messages asking for the article about the whole game.
      *
      * @param {object} o
-     *   moves     analyzed moves (output contract in AGENTS.md); later entries may be
-     *             placeholders ({ move, move_number, is_white }) not analyzed yet
-     *   pgn       optional: an annotated PGN of the whole game to send as context
-     *   index     move to comment on, -1 for the intro
-     *   gameInfo  { white, black, white_elo, black_elo, opening, eco, result }
+     *   moves     analyzed moves (output contract in AGENTS.md)
+     *   gameInfo  { white, black, white_elo, black_elo, opening, eco, result, date, event }
      */
-    function buildMoveMessages(o) {
+    function buildArticleMessages(o) {
         const moves = o.moves || [];
-        const index = typeof o.index === 'number' ? o.index : -1;
         const info = o.gameInfo || {};
         const P = getPgnExport(o.PgnExport);
-        const context = o.pgn ? [
-            'Here is the whole game, annotated by a chess engine: [%eval] tags, NAGs (?! ? ?? ! !!), comments with the',
-            'verdict and the better move, and variations with the better lines and the punishment lines. Study it so you',
-            'know the story of the game. You will comment on it one move at a time.',
-            '',
-            'PGN:',
-            String(o.pgn).trim()
-        ].join('\n') : '';
+        const last = moves.length - 1;
+        const result = /^(1-0|0-1|1\/2-1\/2)$/.test(String(info.result || '').trim()) ? String(info.result).trim() : '';
 
-        const task = [`Game: ${players(info)}${info.opening ? `. Opening: ${info.opening}` : ''}.`, ''];
-        if (index < 0) {
-            task.push('The viewer is looking at the starting position. Give the intro before the first move in 2 or 3 sentences');
-            task.push(`(at most 60 words): introduce the players (${players(info)})${info.opening ? ` and the opening (${info.opening}) with its main idea` : ''},`);
-            task.push('without revealing the result or the key moments.');
+        const task = [];
+        const header = [players(info)];
+        if (info.opening) header.push(`Opening: ${info.opening}${info.eco ? ` (${info.eco})` : ''}`);
+        if (info.event && info.event !== '?') header.push(`Event: ${info.event}`);
+        header.push(`Result: ${result || 'unknown'}`);
+        task.push(`Game: ${header.join('. ')}.`);
+        task.push('');
+        task.push(`Moves: ${movesSoFar(moves, last)}${result ? ` ${result}` : ''}`);
+        const final = last >= 0 && P && P.moveNotes ? P.moveNotes(moves, last) : null;
+        if (final && final.fenAfter) task.push(`Final position (FEN): ${final.fenAfter}`);
+        task.push('');
+
+        const moments = keyMoments(moves, P);
+        if (moments.length) {
+            task.push('Engine notes on the key moments (private, do not read them out):');
+            moments.forEach(k => {
+                const move = moves[k.index];
+                const label = moveLabel(moves, k.index);
+                const notes = k.notes;
+                task.push('');
+                task.push(`${label} (${move.is_white ? 'White' : 'Black'}): ${(notes && notes.quality) || k.key || 'good move'}`);
+                if (notes && notes.fenBefore) task.push(`- Position before the move (FEN): ${notes.fenBefore}`);
+                if (notes && notes.comment) task.push(`- Comment: ${notes.comment}`);
+                if (notes && notes.lines && notes.lines.length) task.push(`- Lines from the position before the move: ${notes.lines.join(' | ')}`);
+                if (notes && notes.punishment) task.push(`- How the opponent can punish it: ${notes.punishment}`);
+                if (k.punishes) task.push(`- It punishes the previous move, ${moveLabel(moves, k.index - 1)} (${withArticle(qualityKey(moves[k.index - 1]))}).`);
+                if (k.missedPunishment) task.push(`- The previous move, ${moveLabel(moves, k.index - 1)}, was ${withArticle(qualityKey(moves[k.index - 1]))}: it could have been punished with ${k.prevPunishment}, and ${label} misses that.`);
+            });
+            task.push('');
+            task.push('Cover every key moment, in the order of the game: the ones that decided the game at length (the line that shows it,');
+            task.push('the better move and how play would go on), the small slips in a sentence.');
         } else {
-            const move = moves[index];
-            const label = moveLabel(moves, index);
-            const notes = P && P.moveNotes ? P.moveNotes(moves, index) : null;
-            const key = qualityKey(move);
-            const prev = index > 0 ? moves[index - 1] : null;
-            const prevNotes = prev && P && P.moveNotes ? P.moveNotes(moves, index - 1) : null;
-            const prevFlagged = prev && ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(qualityKey(prev));
-            const punishFirst = prevNotes && prevNotes.punishment ? bareSan(prevNotes.punishment.replace(/^\d+\.(\.\.)?\s*/, '').split(/\s+/)[0]) : '';
-            const missedPunishment = Boolean(prevFlagged && punishFirst && punishFirst !== bareSan(move.move));
-            const punishes = Boolean(prevFlagged && punishFirst && punishFirst === bareSan(move.move));
-            const critical = CRITICAL.includes(key) || missedPunishment || punishes;
-
-            task.push(`The board now shows ${label}, ${move.is_white ? 'White' : 'Black'}'s move ${move.move_number}. Give the commentary for this move only.`);
-            task.push('');
-            if (notes && notes.fenBefore) task.push(`Position before the move (FEN): ${notes.fenBefore}`);
-            task.push(`Moves so far: ${movesSoFar(moves, index)}`);
-            task.push('');
-            task.push('Engine notes for this move (private, do not read them out):');
-            task.push(`- Verdict: ${(notes && notes.quality) || key || 'good move'}`);
-            if (notes && notes.comment) task.push(`- Comment: ${notes.comment}`);
-            if (notes && notes.lines && notes.lines.length) task.push(`- Lines from the position before the move: ${notes.lines.join(' | ')}`);
-            if (notes && notes.punishment) task.push(`- How the opponent can punish it: ${notes.punishment}`);
-            if (missedPunishment) {
-                task.push(`- The previous move, ${moveLabel(moves, index - 1)}, was a ${qualityKey(prev)}: it could have been punished with ${prevNotes.punishment}, and ${label} misses that.`);
-            }
-            if (punishes) {
-                task.push(`- ${label} punishes the previous move, ${moveLabel(moves, index - 1)} (a ${qualityKey(prev)}).`);
-            }
-            task.push('');
-            const hasAlternatives = Boolean(notes && notes.lines && notes.lines.length);
-            if (critical) {
-                task.push('This is a key moment: 4 to 6 sentences, at most 130 words. Teach it: why the move works or fails, the line that shows it (what its key moves do), the better move or the other alternatives in the notes and how play would go on after them, and end with a one-line takeaway.');
-            } else if (key === 'book') {
-                task.push('This is an opening (book) move: one sentence on the opening idea behind it, at most 25 words.');
-            } else {
-                task.push(`This is a normal move: 1 to 3 sentences, at most 60 words, on the idea behind it${hasAlternatives ? '. If an alternative in the notes shows a different plan, say briefly what it would have aimed for' : ''}.`);
-            }
-            task.push('Talk only about this move and the lines in its notes; do not mention moves that come later in the game.');
-            if (index === moves.length - 1) {
-                task.push(`This is the last move of the game${info.result ? ` (result ${info.result})` : ''}. After it, wrap up the game in 2 or 3 sentences: the turning point, how it was decided, and the main lesson to take away.`);
-            }
+            task.push('The engine found no mistakes and no standout moves: tell the story of the plans and how the game was decided.');
         }
-        task.push('Answer with the commentary text only.');
+        task.push(`Write about ${articleLength(moments.length, moves.length)} words. Answer with the article only.`);
 
         return [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: `${context ? `${context}\n\n---\n\n` : ''}${task.join('\n')}` }
+            { role: 'user', content: task.join('\n') }
         ];
     }
 
@@ -218,22 +233,24 @@
     const MOVE_TOKEN = `(?:\\b(\\d+)\\s*(\\.\\s*\\.\\s*\\.|\u2026|\\.)\\s*)?(?<![\\w-])(${SAN_BODY})(?![\\w-])`;
 
     /**
-     * Find the chess moves in a commentary and check them on the board.
+     * Find the chess moves in a text and check them on the board.
      * Moves written next to each other ("2.Nf3 d5 3.exd5") form a run; a run
      * starts from the end of an earlier run in the text (a line going on), or
-     * from a position of the game up to the move on screen whose move number
-     * and side match ("1...e6" = an alternative to Black's first move). Bare
-     * moves ("Qxf7#") are tried from the position before the move on screen,
-     * then after it. A lone pawn move that reads like a square ("e5") is only
-     * linked when it is a move of the game and not a square ("on e5").
-     * Unchecked text stays text.
+     * from a position of the game whose move number and side match ("1...e6" =
+     * an alternative to Black's first move). Without `index` (an article about
+     * the whole game) bare moves ("Qxf7#") are tried around the last game move
+     * the text named, after it then before it; with `index` (a text about the
+     * move on screen) before and after that move. A lone pawn move that reads
+     * like a square ("e5") is only linked when it is a move of the game and
+     * not a square ("on e5"). Unchecked text stays text.
      *
      * @param {string} text
-     * @param {object} o  { moves: game moves (SAN strings or move objects), index: move on screen (-1 = start) }
+     * @param {object} o  { moves: game moves (SAN strings or move objects), index: optional move on screen (-1 = start) }
      * @returns {{ segments: Array, lines: Array }}
      *   segments: { type: 'text', text } | { type: 'move', text, line, step, gameIndex }
      *     (gameIndex: the game move this is, when the line follows the game; else null)
-     *   lines: { startFen, sans } (line = index in lines, step = index in sans)
+     *   lines: { startFen, sans, gameStart } (line = index in lines, step = index in sans;
+     *     gameStart: the game move the line starts before, so it starts after move gameStart - 1)
      */
     function linkMoves(text, o) {
         const opts = o || {};
@@ -242,9 +259,10 @@
         const plain = { segments: src ? [{ type: 'text', text: src }] : [], lines: [] };
         if (!ChessCtor || !src) return plain;
         const game = (opts.moves || []).map(m => bareSan(typeof m === 'string' ? m : (m && m.move)));
-        const index = typeof opts.index === 'number' ? opts.index : -1;
+        const whole = typeof opts.index !== 'number';
+        const index = whole ? game.length - 1 : opts.index;
 
-        // positions[k] = before game move k, up to the position after the move on screen
+        // positions[k] = before game move k, up to the position after the move on screen (or the end)
         const positions = [];
         const board = new ChessCtor();
         positions.push(board.fen());
@@ -256,21 +274,38 @@
         }
         const side = fen => fen.split(' ')[1];
         const number = fen => parseInt(fen.split(' ')[5], 10) || 1;
-        const play = (fen, tokens) => {
-            const b = new ChessCtor(fen);
-            const out = [];
-            for (const t of tokens) {
-                let m = null;
-                try { m = b.move(t.san.replace(/[!?]+$/, '')); } catch (e) { m = null; }
-                if (!m) break;
-                out.push(m.san);
+        // Every run is tried from many positions: the legal moves of a position and the position
+        // after a move are worked out once (an article names dozens of moves of a long game)
+        const sanKey = san => String(san).replace(/[+#!?=]/g, '');
+        const legal = new Map(); // fen -> Map(sanKey -> SAN)
+        const after = new Map(); // fen + SAN -> fen
+        const legalMoves = fen => {
+            if (!legal.has(fen)) {
+                let list = [];
+                try { list = new ChessCtor(fen).moves(); } catch (e) { list = []; }
+                legal.set(fen, new Map(list.map(san => [sanKey(san), san])));
             }
-            return out;
+            return legal.get(fen);
         };
-        const endFen = (fen, sans) => {
-            const b = new ChessCtor(fen);
-            sans.forEach(s => b.move(s));
-            return b.fen();
+        const next = (fen, san) => {
+            const k = `${fen}|${san}`;
+            if (!after.has(k)) {
+                const b = new ChessCtor(fen);
+                b.move(san);
+                after.set(k, b.fen());
+            }
+            return after.get(k);
+        };
+        const play = (fen, tokens) => {
+            const out = [];
+            let at = fen;
+            for (const t of tokens) {
+                const san = legalMoves(at).get(sanKey(t.san));
+                if (!san) break;
+                out.push(san);
+                at = next(at, san);
+            }
+            return { sans: out, end: at };
         };
         // Game move reached at each step when a line from game position k follows the game
         const gameSteps = (k, sans) => {
@@ -298,28 +333,32 @@
             else runs.push({ tokens: [tok] });
         }
 
-        const lines = []; // { startFen, sans, gameStart }
+        const lines = []; // { startFen, sans, gameStart, end: the position after the line }
         const linked = [];
         let lastLine = -1; // the line the previous run started or extended
+        let context = 0;   // whole game: the position after the last game move named
         runs.forEach(run => {
             const first = run.tokens[0];
             const fits = fen => first.number === null || (number(fen) === first.number && (side(fen) === 'b') === first.black);
             const candidates = [];
             const add = (fen, line, gameIndex) => { if (fen && fits(fen)) candidates.push({ fen, line, gameIndex }); };
             // A line going on ("1...e6 ... after 2.Nf3 d5"), then the game, then older lines
-            if (lastLine >= 0) add(endFen(lines[lastLine].startFen, lines[lastLine].sans), lastLine, null);
+            if (lastLine >= 0) add(lines[lastLine].end, lastLine, null);
             if (first.number === null) {
-                if (index >= 0) { add(positions[index], -1, index); add(positions[index + 1], -1, index + 1); }
+                if (whole) { add(positions[context], -1, context); add(positions[context - 1], -1, context - 1); }
+                else if (index >= 0) { add(positions[index], -1, index); add(positions[index + 1], -1, index + 1); }
                 else add(positions[0], -1, 0);
             }
-            for (let k = positions.length - 1; k >= 0; k--) add(positions[k], -1, k);
-            for (let k = lines.length - 1; k >= 0; k--) if (k !== lastLine) add(endFen(lines[k].startFen, lines[k].sans), k, null);
+            const order = positions.map((fen, k) => k).reverse();
+            if (whole) order.sort((a, b) => Math.abs(a - context) - Math.abs(b - context) || b - a);
+            order.forEach(k => add(positions[k], -1, k));
+            for (let k = lines.length - 1; k >= 0; k--) if (k !== lastLine) add(lines[k].end, k, null);
 
             let best = null;
             for (const c of candidates) {
-                const sans = play(c.fen, run.tokens);
-                if (sans.length && (!best || sans.length > best.sans.length)) best = Object.assign({ sans }, c);
-                if (sans.length === run.tokens.length) break;
+                const played = play(c.fen, run.tokens);
+                if (played.sans.length && (!best || played.sans.length > best.sans.length)) best = Object.assign({}, c, played);
+                if (played.sans.length === run.tokens.length) break;
             }
             if (!best) return;
             const loneSquare = run.tokens.length === 1 && first.number === null && /^[a-h][1-8][+#]?[!?]*$/.test(first.san);
@@ -335,15 +374,18 @@
                 lineId = best.line;
                 offset = lines[lineId].sans.length;
                 lines[lineId].sans = lines[lineId].sans.concat(best.sans);
+                lines[lineId].end = best.end;
             } else {
                 lineId = lines.length;
-                lines.push({ startFen: best.fen, sans: best.sans.slice(), gameStart: best.gameIndex });
+                lines.push({ startFen: best.fen, sans: best.sans.slice(), gameStart: best.gameIndex, end: best.end });
             }
             lastLine = lineId;
             const steps = gameSteps(lines[lineId].gameStart === undefined ? null : lines[lineId].gameStart, lines[lineId].sans);
             best.sans.forEach((san, j) => {
                 const step = offset + j;
-                linked.push({ tok: run.tokens[j], line: lineId, step, gameIndex: step < steps.length ? steps[step] : null });
+                const gameIndex = step < steps.length ? steps[step] : null;
+                linked.push({ tok: run.tokens[j], line: lineId, step, gameIndex });
+                if (gameIndex !== null) context = gameIndex + 1;
             });
         });
 
@@ -355,7 +397,7 @@
             pos = l.tok.end;
         });
         if (pos < src.length) segments.push({ type: 'text', text: src.slice(pos) });
-        return { segments, lines: lines.map(l => ({ startFen: l.startFen, sans: l.sans })) };
+        return { segments, lines: lines.map(l => ({ startFen: l.startFen, sans: l.sans, gameStart: l.gameStart === undefined ? null : l.gameStart })) };
     }
 
     /**
@@ -375,9 +417,9 @@
 
     /**
      * The model's answer, ready to show: no <think> blocks (and nothing while
-     * one is still open), no leading move label or heading, trimmed. With
-     * `partial` (text still streaming), a first line that may turn out to be
-     * a label ("**12... Nx") is held back until it is complete.
+     * one is still open), no "Here's the article:" preamble, no ```markdown
+     * fence around it, trimmed. With `partial` (text still streaming), an
+     * opening fence still being written is held back.
      */
     function cleanText(text, partial) {
         let t = String(text || '').replace(/\r\n?/g, '\n');
@@ -385,9 +427,9 @@
         const open = t.search(/<think>/i);
         if (open >= 0) t = t.slice(0, open);
         t = t.replace(/^\s+/, '');
-        // "**12... Nxd5**", "12... Nxd5:", "@@ 12... Nxd5", "## Intro" on a line of their own
-        t = t.replace(/^(?:[*_#>\s@]*(?:\d+\s*\.(?:\s*\.\s*\.)?\s*\S+|intro|commentary)[*_:\s]*\n)+/i, '');
-        if (partial && !t.includes('\n') && t.length < 40 && /^[*_#>@]|^\d+\s*\.|^(intro|commentary)\b/i.test(t)) return '';
+        t = t.replace(/^(?:sure|okay|ok|alright|here(?:'s| is))\b[^\n]{0,80}:[ \t]*\n/i, '');
+        t = t.replace(/^\s*```(?:markdown|md)?[ \t]*\n/i, '').replace(/\n```\s*$/, '');
+        if (partial && /^\s*`{1,3}[a-z]*$/i.test(t)) return '';
         return t.trim();
     }
 
@@ -627,8 +669,8 @@
             if (/^\s*>/.test(line)) { flushPara(); flushList(); quote.push(line.replace(/^\s*>\s?/, '')); continue; }
             flushQuote();
             if (!line.trim()) { flushPara(); flushList(); continue; }
-            const heading = line.match(/^\s*#{1,6}\s+(.*?)\s*#*\s*$/);
-            if (heading) { flushAll(); out.push(`<p class="gc-md-heading">${inlineMarkdown(heading[1])}</p>`); continue; }
+            const heading = line.match(/^\s*(#{1,6})\s+(.*?)\s*#*\s*$/);
+            if (heading) { flushAll(); out.push(`<p class="gc-md-heading gc-md-h${heading[1].length}">${inlineMarkdown(heading[2])}</p>`); continue; }
             if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); out.push('<hr>'); continue; }
             const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
             const numbered = line.match(/^\s*(\d+)([.)])\s+(.*)$/);
@@ -709,28 +751,24 @@
         }
     }
 
-    /** Saved commentary of a game: { model, savedAt, moves: { [index]: text } } or null. */
-    function loadGame(key, storage) {
+    /** Saved article of a game: { text, model, savedAt } or null. */
+    function loadArticle(key, storage) {
         const entry = readAll(storage)[key];
-        return entry && entry.moves && typeof entry.moves === 'object' ? entry : null;
+        return entry && typeof entry.text === 'string' && entry.text ? entry : null;
     }
 
-    /** Save the commentary of one move (-1 = intro), keeping the MAX_STORED most recent games. */
-    function saveMove(key, index, text, model, storage) {
+    /** Save the article of a game, keeping the MAX_STORED most recent games. */
+    function saveArticle(key, text, model, storage) {
         if (!key) return false;
         const data = readAll(storage);
-        const entry = data[key] && data[key].moves ? data[key] : { moves: {} };
-        entry.moves[index] = text;
-        if (model) entry.model = model;
-        entry.savedAt = Date.now();
-        data[key] = entry;
+        data[key] = { text: String(text || ''), model: model || '', savedAt: Date.now() };
         return writeAll(data, storage);
     }
 
-    function removeMove(key, index, storage) {
+    function removeArticle(key, storage) {
         const data = readAll(storage);
-        if (!data[key] || !data[key].moves) return;
-        delete data[key].moves[index];
+        if (!data[key]) return;
+        delete data[key];
         writeAll(data, storage);
     }
 
@@ -739,7 +777,9 @@
         STORAGE_KEY,
         SETTINGS_KEY,
         DEFAULT_BASE_URL,
-        buildMoveMessages,
+        buildArticleMessages,
+        keyMoments,
+        articleLength,
         cleanText,
         isClassifierVerdict,
         linkMoves,
@@ -757,8 +797,8 @@
         loadSettings,
         saveSettings,
         clearSettings,
-        loadGame,
-        saveMove,
-        removeMove
+        loadArticle,
+        saveArticle,
+        removeArticle
     };
 }));
